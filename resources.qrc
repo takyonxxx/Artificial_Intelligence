@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/ai.png</file>
+        <file>ios/Info.plist</file>
+        <file>icons/ai.ico</file>
+    </qresource>
+</RCC>
