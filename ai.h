@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QAudioProbe>
 #include <QAudioRecorder>
+#include <QAudioInput>
 #include <QFileDialog>
 #include <QFile>
 #include <QUrl>
@@ -31,6 +32,7 @@ class Ai : public QMainWindow
 
 public:
     Ai();
+    ~Ai();
 
 public slots:
     void processBuffer(const QAudioBuffer&);
@@ -45,10 +47,13 @@ private slots:
     void onStateChanged(QMediaRecorder::State);
     void onResponseFinish(QNetworkReply *response);
     void updateProgress(qint64 pos);
+    void initializeAudioInput(const QAudioDeviceInfo &deviceInfo);
     void displayErrorMessage();
     void on_exitButton_clicked();
-
     void on_recordButton_clicked();
+    void on_micVolumeSlider_valueChanged(int value);
+
+    void on_clearButton_clicked();
 
 private:
     void clearAudioLevels();
@@ -66,6 +71,7 @@ private:
     int recordDuration = 0; // recording duration in miliseconds
 
     QAudioRecorder *m_audioRecorder = nullptr;
+    QScopedPointer<QAudioInput> m_audioInput;
     QAudioProbe *m_probe = nullptr;
     QList<AudioLevel*> m_audioLevels;
     bool m_outputLocationSet = false;

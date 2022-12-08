@@ -14,8 +14,9 @@ Ai::Ai()
 {
     ui->setupUi(this);
     //this->centralWidget()->setStyleSheet("background-color:lightgray ; border: none;");
-    ui->recordButton->setStyleSheet("font-size: 18pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
-    ui->exitButton->setStyleSheet("font-size: 18pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
+    ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
+    ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
+    ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->textTerminal->setStyleSheet("font: 14pt; color: #00cccc; background-color: #001a1a;");
 
     m_audioRecorder = new QAudioRecorder(this);
@@ -49,7 +50,7 @@ Ai::Ai()
     //record times
     ui->recordTimeBox->addItem(QStringLiteral("1000"), QVariant(1000));
     ui->recordTimeBox->addItem(QStringLiteral("2000"), QVariant(2000));
-    ui->recordTimeBox->addItem(QStringLiteral("2000"), QVariant(3000));
+    ui->recordTimeBox->addItem(QStringLiteral("3000"), QVariant(3000));
 
     connect(m_audioRecorder, &QAudioRecorder::durationChanged, this, &Ai::updateProgress);
     connect(m_audioRecorder, &QAudioRecorder::statusChanged, this, &Ai::updateStatus);
@@ -57,7 +58,22 @@ Ai::Ai()
     connect(m_audioRecorder, QOverload<QMediaRecorder::Error>::of(&QAudioRecorder::error), this, &Ai::displayErrorMessage);
     connect(qnam, &QNetworkAccessManager::finished, this, &Ai::onResponseFinish);
 
+    const QAudioDeviceInfo &defaultInputDeviceInfo = QAudioDeviceInfo::defaultInputDevice();
+    initializeAudioInput(defaultInputDeviceInfo);
+
+    AudioLevel *level = new AudioLevel(ui->centralwidget);
+    level->setMinimumSize(QSize(0,50));
+    m_audioLevels.append(level);
+    ui->levelsLayout->addWidget(level);
     byteArr.reserve(8*1024*1024);
+}
+
+Ai::~Ai()
+{
+    delete m_audioRecorder;
+    delete m_probe;
+    delete qnam;
+    delete ui;
 }
 
 void Ai::updateProgress(qint64 duration)
@@ -134,6 +150,7 @@ void Ai::toggleRecord()
         settings.setCodec("audio/pcm");
         settings.setSampleRate(44100);
         settings.setChannelCount(1);
+        settings.setEncodingMode(QMultimedia::ConstantQualityEncoding);
         QString container = "audio/x-wav";
 
         m_audioRecorder->setEncodingSettings(settings, QVideoEncoderSettings(), container);
@@ -189,7 +206,7 @@ void Ai::onResponseFinish(QNetworkReply *response)
         if (command.size() > 0)
             appendText(command);
         else
-            appendText("Null");
+            appendText("No response.");
     }
 }
 
@@ -332,6 +349,7 @@ void Ai::processBuffer(const QAudioBuffer& buffer)
         m_audioLevels.clear();
         for (int i = 0; i < buffer.format().channelCount(); ++i) {
             AudioLevel *level = new AudioLevel(ui->centralwidget);
+            level->setMinimumSize(QSize(0,50));
             m_audioLevels.append(level);
             ui->levelsLayout->addWidget(level);
         }
@@ -350,5 +368,39 @@ void Ai::on_recordButton_clicked()
 void Ai::on_exitButton_clicked()
 {
     QApplication::quit();
+}
+
+void Ai::initializeAudioInput(const QAudioDeviceInfo &deviceInfo)
+{
+    QAudioFormat format;
+    format.setSampleRate(44100);
+    format.setChannelCount(1);
+    format.setSampleSize(16);
+    format.setSampleType(QAudioFormat::SignedInt);
+    format.setByteOrder(QAudioFormat::LittleEndian);
+    format.setCodec("audio/pcm");
+
+    if (!deviceInfo.isFormatSupported(format)) {
+        qWarning() << "Default format not supported - trying to use nearest";
+        format = deviceInfo.nearestFormat(format);
+    }
+
+    m_audioInput.reset(new QAudioInput(deviceInfo, format));
+    m_audioInput->start();
+}
+
+void Ai::on_micVolumeSlider_valueChanged(int value)
+{
+
+    qreal linearVolume = QAudio::convertVolume(value / qreal(100),
+                                               QAudio::LogarithmicVolumeScale,
+                                               QAudio::LinearVolumeScale);
+
+    m_audioInput->setVolume(linearVolume);
+}
+
+void Ai::on_clearButton_clicked()
+{
+    ui->textTerminal->clear();
 }
 
