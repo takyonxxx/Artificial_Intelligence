@@ -21,14 +21,14 @@
        <widget class="QComboBox" name="audioDeviceBox"/>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="label_5">
+       <widget class="QLabel" name="labelRecordTime">
         <property name="text">
          <string>Record Time : </string>
         </property>
        </widget>
       </item>
       <item row="0" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="labelInputDevice">
         <property name="text">
          <string>Input Device : </string>
         </property>
@@ -57,37 +57,24 @@
     </item>
     <item row="2" column="0">
      <layout class="QGridLayout" name="gridLayout">
-      <item row="2" column="0" colspan="2">
-       <layout class="QVBoxLayout" name="levelsLayout">
-        <property name="spacing">
-         <number>-1</number>
-        </property>
-        <property name="sizeConstraint">
-         <enum>QLayout::SetFixedSize</enum>
-        </property>
-       </layout>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_6">
+      <item row="0" column="0" colspan="3">
+       <widget class="QPushButton" name="recordButton">
         <property name="text">
-         <string>Mic Volume : </string>
+         <string>Record</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="4" column="0">
        <widget class="QPushButton" name="clearButton">
         <property name="text">
          <string>Clear</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
-       <widget class="QPushButton" name="exitButton">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
+      <item row="1" column="0">
+       <widget class="QLabel" name="labelMicVolume">
         <property name="text">
-         <string>Exit</string>
+         <string>Mic Volume : </string>
         </property>
        </widget>
       </item>
@@ -104,10 +91,37 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0" colspan="2">
-       <widget class="QPushButton" name="recordButton">
+      <item row="1" column="2">
+       <widget class="QLabel" name="labelMicLevelInfo">
         <property name="text">
-         <string>Record</string>
+         <string>%100</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
+       <layout class="QVBoxLayout" name="levelsLayout">
+        <property name="spacing">
+         <number>-1</number>
+        </property>
+        <property name="sizeConstraint">
+         <enum>QLayout::SetFixedSize</enum>
+        </property>
+       </layout>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelAudioLevel">
+        <property name="text">
+         <string>Audio Level : </string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1" colspan="2">
+       <widget class="QPushButton" name="exitButton">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Exit</string>
         </property>
        </widget>
       </item>

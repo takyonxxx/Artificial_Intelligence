@@ -18,6 +18,12 @@ Ai::Ai()
     ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->textTerminal->setStyleSheet("font: 14pt; color: #00cccc; background-color: #001a1a;");
+    ui->labelInputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
+    ui->audioDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
+    ui->labelRecordTime->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
+    ui->recordTimeBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
+    ui->labelMicLevelInfo->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
+
 
     m_audioRecorder = new QAudioRecorder(this);
     m_probe = new QAudioProbe(this);
@@ -397,6 +403,7 @@ void Ai::on_micVolumeSlider_valueChanged(int value)
                                                QAudio::LinearVolumeScale);
 
     m_audioInput->setVolume(linearVolume);
+    ui->labelMicLevelInfo->setText(QString::number(value) + "%");
 }
 
 void Ai::on_clearButton_clicked()
