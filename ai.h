@@ -12,6 +12,7 @@
 #include <QAudioProbe>
 #include <QAudioRecorder>
 #include <QAudioInput>
+#include <QTextToSpeech>
 #include <QFileDialog>
 #include <QFile>
 #include <QUrl>
@@ -42,6 +43,11 @@ private slots:
     void toggleRecord();
     void translate();
     void appendText(QString text);
+    void languageSelected(int language);
+    void localeChanged(const QLocale &locale);
+    void voiceSelected(int index);
+    void setVolume(int volume);
+    void stateChanged(QTextToSpeech::State state);
 
     void updateStatus(QMediaRecorder::Status);
     void onStateChanged(QMediaRecorder::State);
@@ -57,6 +63,11 @@ private slots:
 
 private:
     void clearAudioLevels();
+    void setSpeechEngine();
+
+    QTextToSpeech *m_speech = nullptr;
+    QVector<QVoice> m_voices;
+    int m_current_language_index{0};
 
     QAudioEncoderSettings settings;
     QNetworkAccessManager *qnam;

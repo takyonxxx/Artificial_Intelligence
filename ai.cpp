@@ -1,3 +1,4 @@
+#include <QLoggingCategory>
 #include "ai.h"
 #include "ui_ai.h"
 #include "constants.h"
@@ -13,6 +14,7 @@ Ai::Ai()
     : ui(new Ui::Ai)
 {
     ui->setupUi(this);
+    QLoggingCategory::setFilterRules(QStringLiteral("qt.speech.tts=true \n qt.speech.tts.*=true"));
     //this->centralWidget()->setStyleSheet("background-color:lightgray ; border: none;");
     ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
@@ -24,12 +26,13 @@ Ai::Ai()
     ui->recordTimeBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
     ui->labelMicLevelInfo->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
 
-
     m_audioRecorder = new QAudioRecorder(this);
     m_probe = new QAudioProbe(this);
     connect(m_probe, &QAudioProbe::audioBufferProbed, this, &Ai::processBuffer);
     m_probe->setSource(m_audioRecorder);
     qnam = new QNetworkAccessManager(this);
+
+    setSpeechEngine();
 
     if (!this->location.exists())
         this->location.mkpath(".");
@@ -76,10 +79,42 @@ Ai::Ai()
 
 Ai::~Ai()
 {
+    m_speech->stop();
+    delete m_speech;
     delete m_audioRecorder;
     delete m_probe;
     delete qnam;
     delete ui;
+}
+
+void Ai::setSpeechEngine()
+{
+    m_speech = new QTextToSpeech(this);
+    m_speech->setPitch(0);
+    connect(m_speech, &QTextToSpeech::localeChanged, this, &Ai::localeChanged);
+    connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::stateChanged);
+    disconnect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
+    ui->language->clear();
+    // Populate the languages combobox before connecting its signal.
+    const QVector<QLocale> locales = m_speech->availableLocales();
+    QLocale current = m_speech->locale();
+    int counter=0;
+    for (const QLocale &locale : locales) {
+        QString name(QString("%1 (%2)")
+                     .arg(QLocale::languageToString(locale.language()))
+                     .arg(QLocale::countryToString(locale.country())));
+        QVariant localeVariant(locale);
+        ui->language->addItem(name, localeVariant);        
+        if (name.contains("Turkish"))
+        {
+            current = locale;
+            m_current_language_index = counter;
+        }
+        counter++;
+    }
+    connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
+    connect(ui->volume, &QSlider::valueChanged, this, &Ai::setVolume);
+    ui->language->setCurrentIndex(m_current_language_index);
 }
 
 void Ai::updateProgress(qint64 duration)
@@ -209,16 +244,70 @@ void Ai::onResponseFinish(QNetworkReply *response)
 
     if (error.isUndefined()) {
         auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
-        if (command.size() > 0)
+        if (command.size() > 0){
+
             appendText(command);
+            m_speech->say(command);
+        }
         else
+        {
             appendText("No response.");
+            m_speech->say("Şu an cevap veremiyorum.");
+        }
     }
 }
 
 void Ai::appendText(QString text)
 {
     ui->textTerminal->append(text);
+}
+
+void Ai::languageSelected(int language)
+{
+    QLocale locale = ui->language->itemData(language).toLocale();
+    m_speech->setLocale(locale);
+}
+
+void Ai::localeChanged(const QLocale &locale)
+{
+    QVariant localeVariant(locale);
+    ui->language->setCurrentIndex(ui->language->findData(localeVariant));
+
+    disconnect(ui->voice, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::voiceSelected);
+    ui->voice->clear();
+
+    m_voices = m_speech->availableVoices();
+    QVoice currentVoice = m_speech->voice();
+    for (const QVoice &voice : qAsConst(m_voices)) {
+        ui->voice->addItem(QString("%1 - %2 - %3").arg(voice.name())
+                          .arg(QVoice::genderName(voice.gender()))
+                          .arg(QVoice::ageName(voice.age())));
+        if (voice.name() == currentVoice.name())
+            ui->voice->setCurrentIndex(ui->voice->count() - 1);
+    }
+    connect(ui->voice, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::voiceSelected);
+}
+
+void Ai::voiceSelected(int index)
+{
+    m_speech->setVoice(m_voices.at(index));
+}
+
+void Ai::setVolume(int volume)
+{
+    m_speech->setVolume(volume / 100.0);
+}
+
+void Ai::stateChanged(QTextToSpeech::State state)
+{
+    if (state == QTextToSpeech::Speaking) {
+        ui->statusbar->showMessage("Speech started...");
+    } else if (state == QTextToSpeech::Ready)
+        ui->statusbar->showMessage("Speech stopped...", 2000);
+    else if (state == QTextToSpeech::Paused)
+        ui->statusbar->showMessage("Speech paused...");
+    else
+        ui->statusbar->showMessage("Speech error!");
 }
 
 void Ai::togglePause()

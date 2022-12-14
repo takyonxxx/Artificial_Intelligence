@@ -1,4 +1,4 @@
-QT += core gui multimedia
+QT += core gui multimedia texttospeech
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = Ai
 CONFIG += c++17
