@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QAudioProbe>
 #include <QAudioRecorder>
+#include <QAudioOutput>
 #include <QAudioInput>
 #include <QTextToSpeech>
 #include <QFileDialog>
@@ -48,12 +49,14 @@ private slots:
     void voiceSelected(int index);
     void setVolume(int volume);
     void stateChanged(QTextToSpeech::State state);
+    void deviceChanged(int index);
 
     void updateStatus(QMediaRecorder::Status);
     void onStateChanged(QMediaRecorder::State);
     void onResponseFinish(QNetworkReply *response);
     void updateProgress(qint64 pos);
     void initializeAudioInput(const QAudioDeviceInfo &deviceInfo);
+    void initializeAudioOutput(const QAudioDeviceInfo &deviceInfo);
     void displayErrorMessage();
     void on_exitButton_clicked();
     void on_recordButton_clicked();
@@ -63,7 +66,7 @@ private slots:
 
 private:
     void clearAudioLevels();
-    void setSpeechEngine();
+    void setSpeechEngine();    
 
     QTextToSpeech *m_speech = nullptr;
     QVector<QVoice> m_voices;
@@ -82,6 +85,7 @@ private:
     int recordDuration = 0; // recording duration in miliseconds
 
     QAudioRecorder *m_audioRecorder = nullptr;
+    QScopedPointer<QAudioOutput> m_audioOutput;
     QScopedPointer<QAudioInput> m_audioInput;
     QAudioProbe *m_probe = nullptr;
     QList<AudioLevel*> m_audioLevels;

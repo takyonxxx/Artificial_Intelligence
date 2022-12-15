@@ -16,45 +16,58 @@ Ai::Ai()
     ui->setupUi(this);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.speech.tts=true \n qt.speech.tts.*=true"));
     //this->centralWidget()->setStyleSheet("background-color:lightgray ; border: none;");
+
     ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->textTerminal->setStyleSheet("font: 14pt; color: #00cccc; background-color: #001a1a;");
+    ui->labelOutputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
+    ui->audioOutputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
     ui->labelInputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
-    ui->audioDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
+    ui->audioInputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
     ui->labelRecordTime->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
     ui->recordTimeBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
     ui->labelMicLevelInfo->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
 
     m_audioRecorder = new QAudioRecorder(this);
+    m_speech = new QTextToSpeech(this);
     m_probe = new QAudioProbe(this);
     connect(m_probe, &QAudioProbe::audioBufferProbed, this, &Ai::processBuffer);
     m_probe->setSource(m_audioRecorder);
-    qnam = new QNetworkAccessManager(this);
+
+    const QAudioDeviceInfo &defaultOutputDeviceInfo = QAudioDeviceInfo::defaultOutputDevice();
+    initializeAudioOutput(defaultOutputDeviceInfo);
+
+    const QAudioDeviceInfo &defaultInputDeviceInfo = QAudioDeviceInfo::defaultInputDevice();
+    initializeAudioInput(defaultInputDeviceInfo);
 
     setSpeechEngine();
 
+    //http request
+    qnam = new QNetworkAccessManager(this);
     if (!this->location.exists())
         this->location.mkpath(".");
-
     this->filePath = location.filePath(fileName);
-
     this->url.setUrl(baseApi);
     this->url.setQuery("key=" + apiKey);
-
     this->request.setUrl(this->url);
     this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-    //audio devices
-    //ui->audioDeviceBox->addItem(tr("Default"), QVariant(QString()));
-    for (auto &device: m_audioRecorder->audioInputs()) {
-        ui->audioDeviceBox->addItem(device, QVariant(device));
-    }
+    //audio outputs
 
-//    //sample rates
-//    for (int sampleRate: m_audioRecorder->supportedAudioSampleRates()) {
-//        qDebug() << sampleRate;
-//    }
+    ui->audioOutputDeviceBox->addItem(defaultOutputDeviceInfo.deviceName(), QVariant::fromValue(defaultOutputDeviceInfo));
+    for (auto &deviceInfo: QAudioDeviceInfo::availableDevices(QAudio::AudioOutput)) {
+        if (deviceInfo != defaultOutputDeviceInfo)
+            ui->audioOutputDeviceBox->addItem(deviceInfo.deviceName(), QVariant::fromValue(deviceInfo));
+    }
+    connect(ui->audioOutputDeviceBox, QOverload<int>::of(&QComboBox::activated), this, &Ai::deviceChanged);
+
+    //audio inputs
+    ui->audioInputDeviceBox->addItem(defaultInputDeviceInfo.deviceName(), QVariant::fromValue(defaultInputDeviceInfo));
+    for (auto &deviceInfo: QAudioDeviceInfo::availableDevices(QAudio::AudioInput)) {
+        if (deviceInfo != defaultInputDeviceInfo)
+            ui->audioInputDeviceBox->addItem(deviceInfo.deviceName(), QVariant::fromValue(deviceInfo));
+    }
 
     //record times
     ui->recordTimeBox->addItem(QStringLiteral("1000"), QVariant(1000));
@@ -66,9 +79,6 @@ Ai::Ai()
     connect(m_audioRecorder, &QAudioRecorder::stateChanged, this, &Ai::onStateChanged);
     connect(m_audioRecorder, QOverload<QMediaRecorder::Error>::of(&QAudioRecorder::error), this, &Ai::displayErrorMessage);
     connect(qnam, &QNetworkAccessManager::finished, this, &Ai::onResponseFinish);
-
-    const QAudioDeviceInfo &defaultInputDeviceInfo = QAudioDeviceInfo::defaultInputDevice();
-    initializeAudioInput(defaultInputDeviceInfo);
 
     AudioLevel *level = new AudioLevel(ui->centralwidget);
     level->setMinimumSize(QSize(0,50));
@@ -88,8 +98,7 @@ Ai::~Ai()
 }
 
 void Ai::setSpeechEngine()
-{
-    m_speech = new QTextToSpeech(this);
+{    
     m_speech->setPitch(0);
     connect(m_speech, &QTextToSpeech::localeChanged, this, &Ai::localeChanged);
     connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::stateChanged);
@@ -185,7 +194,7 @@ void Ai::toggleRecord()
 {
     if (m_audioRecorder->state() == QMediaRecorder::StoppedState) {
 
-        m_audioRecorder->setAudioInput(boxValue(ui->audioDeviceBox).toString());
+        m_audioRecorder->setAudioInput(boxValue(ui->audioInputDeviceBox).toString());
         this->recordDuration = boxValue(ui->recordTimeBox).toInt();
 
         settings.setCodec("audio/pcm");
@@ -308,6 +317,13 @@ void Ai::stateChanged(QTextToSpeech::State state)
         ui->statusbar->showMessage("Speech paused...");
     else
         ui->statusbar->showMessage("Speech error!");
+}
+
+void Ai::deviceChanged(int index)
+{
+    m_audioOutput->stop();
+    m_audioOutput->disconnect(this);
+    initializeAudioOutput(ui->audioOutputDeviceBox->itemData(index).value<QAudioDeviceInfo>());
 }
 
 void Ai::togglePause()
@@ -482,6 +498,23 @@ void Ai::initializeAudioInput(const QAudioDeviceInfo &deviceInfo)
 
     m_audioInput.reset(new QAudioInput(deviceInfo, format));
     m_audioInput->start();
+}
+
+void Ai::initializeAudioOutput(const QAudioDeviceInfo &deviceInfo)
+{
+    QAudioFormat format;
+    format.setSampleRate(44100);
+    format.setChannelCount(2);
+    format.setSampleSize(16);
+    format.setCodec("audio/pcm");
+    format.setByteOrder(QAudioFormat::LittleEndian);
+    format.setSampleType(QAudioFormat::SignedInt);
+
+    if (!deviceInfo.isFormatSupported(format)) {
+        qWarning() << "Default format not supported - trying to use nearest";
+        format = deviceInfo.nearestFormat(format);
+    }
+    m_audioOutput.reset(new QAudioOutput(deviceInfo, format));
 }
 
 void Ai::on_micVolumeSlider_valueChanged(int value)
