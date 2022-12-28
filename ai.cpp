@@ -248,6 +248,7 @@ void Ai::onResponseFinish(QNetworkReply *response)
     response->deleteLater();
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
+    appendText(strFromJson);
 
     auto error = data["error"]["message"];
 
