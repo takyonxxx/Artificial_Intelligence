@@ -9,6 +9,8 @@
 #include <QSslSocket>
 #include <QAudioDevice>
 #include <QAudioSource>
+#include <QAudioOutput>
+#include <QAudioSink>
 #include <QMediaCaptureSession>
 #include <QStandardPaths>
 #include <QNetworkAccessManager>
@@ -34,6 +36,7 @@ class Ai : public QMainWindow
 
 public:
     Ai();
+    ~Ai();
 
 public slots:
     void processBuffer(const QAudioBuffer&);
@@ -79,9 +82,11 @@ private:
 
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
-//    QAudioInput *m_audioInput = nullptr;
-    QAudioSource *m_audioSource = nullptr;
-    QIODevice *ioDevice = nullptr;
+    QAudioSource *m_audioInputSource = nullptr;
+    QAudioSource *m_audioOutputSource = nullptr;
+    QIODevice *ioInputDevice = nullptr;
+    QIODevice *ioOutputDevice = nullptr;
+    QAudioOutput *m_audioOutput = nullptr;
     QList<AudioLevel*> m_audioLevels;
     QAudioFormat format;
 

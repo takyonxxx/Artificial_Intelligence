@@ -94,13 +94,32 @@ Ai::Ai()
         ui->levelsLayout->addWidget(level);
     }
 
-//    const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
-//    if (inputDevice.isNull()) {
-//        QMessageBox::warning(nullptr, "audio",
-//                             "There is no audio input device available.");
-//    }
-//    m_audioInput = new QAudioInput(inputDevice, this);
+    m_audioOutput = new QAudioOutput(this);
 
+    const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
+    if (inputDevice.isNull()) {
+        QMessageBox::warning(nullptr, "audio",
+                             "There is no audio input device available.");
+    }
+
+    m_audioInputSource = new QAudioSource(inputDevice, format);
+    m_audioInputSource->setBufferSize(200);
+
+    ioInputDevice = m_audioInputSource->start();
+    connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+    appendText("Default microphone (" + inputDevice.description() + ')');
+
+}
+
+Ai::~Ai()
+{
+    delete m_speech;
+    delete m_audioOutput;
+    delete ioInputDevice;
+    delete ioOutputDevice;
+    delete m_audioRecorder;
+    delete m_audioInputSource;
+    delete m_audioOutputSource;
 }
 
 void Ai::setSpeechEngine()
@@ -282,15 +301,39 @@ static QVariant boxValue(const QComboBox *box)
 
 void Ai::inputDeviceChanged(int index)
 {
-//    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
-//    m_captureSession.audioInput()->setDevice(inputDevice);
-//    qDebug() << "Default microphone (" + inputDevice.description() + ')';
-//    m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
+    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
+    if (!inputDevice.isFormatSupported(format))
+    {
+            qWarning() << "Raw audio format not supported by backend, cannot play audio.";
+            return;
+    }
+
+    m_captureSession.audioInput()->setDevice(inputDevice);
+    m_audioInputSource = new QAudioSource(inputDevice, format);
+    m_audioInputSource->setBufferSize(200);
+
+    ioInputDevice = m_audioInputSource->start();
+    connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+    appendText("Default microphone (" + inputDevice.description() + ')');
+
+    //m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
 }
 
 void Ai::outputDeviceChanged(int index)
 {
+    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();
+    if (!ouputDevice.isFormatSupported(format))
+    {
+            qWarning() << "Raw audio format not supported by backend, cannot play audio.";
+            return;
+    }
 
+    m_audioOutput->setDevice(ouputDevice);
+
+//    m_audioOutputSource = new QAudioSource(ouputDevice, format);
+//    m_audioOutputSource->setBufferSize(200);
+//    ioOutputDevice = m_audioOutputSource->start();
+    appendText("Default speaker (" + ouputDevice.description() + ')');
 }
 
 void Ai::updateProgress(qint64 duration)
@@ -383,13 +426,12 @@ void Ai::toggleRecord()
             m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
             m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
-            m_audioSource = new QAudioSource(inputDevice, format);
-            m_audioSource->setBufferSize(200);
+            m_audioInputSource = new QAudioSource(inputDevice, format);
+            m_audioInputSource->setBufferSize(200);
 
-            ioDevice = m_audioSource->start();
-            connect(ioDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-
-            qDebug() << "Default microphone (" + inputDevice.description() + ')';
+            ioInputDevice = m_audioInputSource->start();
+            connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+            appendText("Default microphone (" + inputDevice.description() + ')');
 
             m_audioRecorder->record();
         }
@@ -397,7 +439,7 @@ void Ai::toggleRecord()
     else
     {
 
-        disconnect(ioDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+        disconnect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
         m_audioRecorder->stop();
     }
 }
@@ -444,28 +486,15 @@ QList<qreal> getBufferLevels(const QAudioBuffer &buffer)
 
 void Ai::processBuffer(const QAudioBuffer& buffer)
 {
-    if (m_audioLevels.count() != buffer.format().channelCount()) {
-        qDeleteAll(m_audioLevels);
-        m_audioLevels.clear();
-        for (int i = 0; i < buffer.format().channelCount(); ++i) {
-            AudioLevel *level = new AudioLevel(ui->centralwidget);
-            level->setMinimumSize(QSize(0,50));
-            m_audioLevels.append(level);
-            ui->levelsLayout->addWidget(level);
-        }
-    }
-
     QList<qreal> levels = getBufferLevels(buffer);
     for (int i = 0; i < levels.count(); ++i)
         m_audioLevels.at(i)->setLevel(levels.at(i));
 }
 
-
-
 void Ai::micBufferReady()
 {
-    qint64 bytes = m_audioSource->bytesAvailable();
-    auto buffer = ioDevice->read(bytes);
+    qint64 bytes = m_audioInputSource->bytesAvailable();
+    auto buffer = ioInputDevice->read(bytes);
     const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, format);
     processBuffer(audioBuffer);
 }
@@ -475,12 +504,10 @@ void Ai::on_exitButton_clicked()
     QApplication::quit();
 }
 
-
 void Ai::on_clearButton_clicked()
 {
       ui->textTerminal->clear();
 }
-
 
 void Ai::on_recordButton_clicked()
 {
@@ -493,7 +520,7 @@ void Ai::on_micVolumeSlider_valueChanged(int value)
                                                QAudio::LogarithmicVolumeScale,
                                                QAudio::LinearVolumeScale);
     m_captureSession.audioInput()->setVolume(linearVolume);
-    m_audioSource->setVolume(linearVolume);
+    m_audioInputSource->setVolume(linearVolume);
     ui->labelMicLevelInfo->setText(QString::number(m_captureSession.audioInput()->volume() * 100, 'f', 0) + "%");
 }
 
