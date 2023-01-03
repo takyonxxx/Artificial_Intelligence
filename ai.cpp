@@ -50,10 +50,7 @@ Ai::Ai()
         auto name = device.description();
         ui->audioOutputDeviceBox->addItem(name, QVariant::fromValue(device));
     }
-    connect(ui->audioOutputDeviceBox, QOverload<int>::of(&QComboBox::activated), this, &Ai::outputDeviceChanged);
-
-    //inputDeviceChanged(0);
-    //outputDeviceChanged(0);
+    connect(ui->audioOutputDeviceBox, QOverload<int>::of(&QComboBox::activated), this, &Ai::outputDeviceChanged);    
 
     //record times
     ui->recordTimeBox->addItem(QStringLiteral("1000"), QVariant(1000));
@@ -83,12 +80,28 @@ Ai::Ai()
 
     setSpeechEngine();
 
-    AudioLevel *level = new AudioLevel(ui->centralwidget);
-    level->setMinimumSize(QSize(0,50));
-    m_audioLevels.append(level);
-    ui->levelsLayout->addWidget(level);           
-}
 
+    format.setSampleFormat(QAudioFormat::Int16);
+    format.setSampleRate(44100);
+    format.setChannelCount(2);
+
+    qDeleteAll(m_audioLevels);
+    m_audioLevels.clear();
+    for (int i = 0; i < format.channelCount(); ++i) {
+        AudioLevel *level = new AudioLevel(ui->centralwidget);
+        level->setMinimumSize(QSize(0,50));
+        m_audioLevels.append(level);
+        ui->levelsLayout->addWidget(level);
+    }
+
+//    const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
+//    if (inputDevice.isNull()) {
+//        QMessageBox::warning(nullptr, "audio",
+//                             "There is no audio input device available.");
+//    }
+//    m_audioInput = new QAudioInput(inputDevice, this);
+
+}
 
 void Ai::setSpeechEngine()
 {
@@ -219,7 +232,7 @@ void Ai::onResponseFinish(QNetworkReply *response)
         {
             appendText("No response.");
         }
-    }
+    }    
 }
 
 void Ai::translate()
@@ -269,24 +282,14 @@ static QVariant boxValue(const QComboBox *box)
 
 void Ai::inputDeviceChanged(int index)
 {
-    qDebug() << "inputDeviceChanged";
-    m_captureSession.audioInput()->setDevice(boxValue(ui->audioInputDeviceBox).value<QAudioDevice>());
-    //m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
+//    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
+//    m_captureSession.audioInput()->setDevice(inputDevice);
+//    qDebug() << "Default microphone (" + inputDevice.description() + ')';
+//    m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
 }
 
 void Ai::outputDeviceChanged(int index)
 {
-    qDebug() << "outputDeviceChanged";
-    QAudioDevice info = QMediaDevices::defaultAudioInput();
-    QAudioFormat format;
-    format.setSampleFormat(QAudioFormat::Int16);
-    format.setSampleRate(44100);
-    format.setChannelCount(1);
-
-
-    if (!info.isFormatSupported(format)) {
-        qWarning() << "Default format not supported - trying to use nearest";
-    }
 
 }
 
@@ -368,16 +371,11 @@ void Ai::toggleRecord()
 
         this->recordDuration = boxValue(ui->recordTimeBox).toInt();
 
-        auto input_device = boxValue(ui->audioInputDeviceBox).value<QAudioDevice>();
+        auto inputDevice = boxValue(ui->audioInputDeviceBox).value<QAudioDevice>();
 
-        QAudioFormat format;
-        format.setSampleFormat(QAudioFormat::Int16);
-        format.setSampleRate(44100);
-        format.setChannelCount(2);
-
-        if(input_device.isFormatSupported(format))
+        if(inputDevice.isFormatSupported(format))
         {
-            m_captureSession.audioInput()->setDevice(input_device);
+            m_captureSession.audioInput()->setDevice(inputDevice);
             m_audioRecorder->setMediaFormat(selectedMediaFormat());
             m_audioRecorder->setAudioSampleRate(sampleRate);
             m_audioRecorder->setAudioBitRate(0);
@@ -385,10 +383,21 @@ void Ai::toggleRecord()
             m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
             m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
+            m_audioSource = new QAudioSource(inputDevice, format);
+            m_audioSource->setBufferSize(200);
+
+            ioDevice = m_audioSource->start();
+            connect(ioDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+
+            qDebug() << "Default microphone (" + inputDevice.description() + ')';
+
             m_audioRecorder->record();
         }
     }
-    else {
+    else
+    {
+
+        disconnect(ioDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
         m_audioRecorder->stop();
     }
 }
@@ -440,6 +449,7 @@ void Ai::processBuffer(const QAudioBuffer& buffer)
         m_audioLevels.clear();
         for (int i = 0; i < buffer.format().channelCount(); ++i) {
             AudioLevel *level = new AudioLevel(ui->centralwidget);
+            level->setMinimumSize(QSize(0,50));
             m_audioLevels.append(level);
             ui->levelsLayout->addWidget(level);
         }
@@ -448,6 +458,16 @@ void Ai::processBuffer(const QAudioBuffer& buffer)
     QList<qreal> levels = getBufferLevels(buffer);
     for (int i = 0; i < levels.count(); ++i)
         m_audioLevels.at(i)->setLevel(levels.at(i));
+}
+
+
+
+void Ai::micBufferReady()
+{
+    qint64 bytes = m_audioSource->bytesAvailable();
+    auto buffer = ioDevice->read(bytes);
+    const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, format);
+    processBuffer(audioBuffer);
 }
 
 void Ai::on_exitButton_clicked()
@@ -473,6 +493,7 @@ void Ai::on_micVolumeSlider_valueChanged(int value)
                                                QAudio::LogarithmicVolumeScale,
                                                QAudio::LinearVolumeScale);
     m_captureSession.audioInput()->setVolume(linearVolume);
+    m_audioSource->setVolume(linearVolume);
     ui->labelMicLevelInfo->setText(QString::number(m_captureSession.audioInput()->volume() * 100, 'f', 0) + "%");
 }
 

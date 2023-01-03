@@ -8,10 +8,11 @@
 #include <QStandardPaths>
 #include <QSslSocket>
 #include <QAudioDevice>
-#include <QAudioOutput>
+#include <QAudioSource>
 #include <QMediaCaptureSession>
 #include <QStandardPaths>
 #include <QNetworkAccessManager>
+#include <QMediaDevices>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QJsonDocument>
@@ -48,6 +49,7 @@ private slots:
     void onStateChanged(QMediaRecorder::RecorderState);
     void onSpeechStateChanged(QTextToSpeech::State state);
     void updateProgress(qint64 pos);
+    void micBufferReady();
     void displayErrorMessage();
     void inputDeviceChanged(int index);
     void outputDeviceChanged(int index);
@@ -63,7 +65,6 @@ private slots:
     void on_recordButton_clicked();
 
     void on_micVolumeSlider_valueChanged(int value);
-
     void on_speechVolumeSlider_valueChanged(int value);
 
 private:
@@ -76,10 +77,13 @@ private:
     QVector<QVoice> m_voices;
     int m_current_language_index{0};
 
-    QMediaCaptureSession m_captureSession;
-    //QScopedPointer<QAudioOutput> m_audioOutput;
+    QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
+//    QAudioInput *m_audioInput = nullptr;
+    QAudioSource *m_audioSource = nullptr;
+    QIODevice *ioDevice = nullptr;
     QList<AudioLevel*> m_audioLevels;
+    QAudioFormat format;
 
     bool m_outputLocationSet = false;
     bool m_updatingFormats = false;
