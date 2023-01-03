@@ -2,27 +2,26 @@
 #define AI_H
 
 #include <QMainWindow>
+#include <QtWidgets>
+#include <QDir>
 #include <QMediaRecorder>
+#include <QStandardPaths>
+#include <QSslSocket>
+#include <QAudioDevice>
+#include <QAudioOutput>
+#include <QMediaCaptureSession>
+#include <QStandardPaths>
+#include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
-#include <QNetworkAccessManager>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QStandardPaths>
-#include <QAudioProbe>
-#include <QAudioRecorder>
-#include <QAudioOutput>
-#include <QAudioInput>
 #include <QTextToSpeech>
-#include <QFileDialog>
-#include <QFile>
-#include <QUrl>
 #include <QDir>
+#include <QUrl>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Ai; }
-class QAudioRecorder;
-class QAudioProbe;
 class QAudioBuffer;
 QT_END_NAMESPACE
 
@@ -34,65 +33,74 @@ class Ai : public QMainWindow
 
 public:
     Ai();
-    ~Ai();
 
 public slots:
     void processBuffer(const QAudioBuffer&);
 
 private slots:
-    void togglePause();
     void toggleRecord();
     void translate();
-    void appendText(QString text);
-    void languageSelected(int language);
+
     void localeChanged(const QLocale &locale);
     void voiceSelected(int index);
-    void setVolume(int volume);
-    void stateChanged(QTextToSpeech::State state);
-    void deviceChanged(int index);
+    void languageSelected(int language);
 
-    void updateStatus(QMediaRecorder::Status);
-    void onStateChanged(QMediaRecorder::State);
-    void onResponseFinish(QNetworkReply *response);
+    void onStateChanged(QMediaRecorder::RecorderState);
+    void onSpeechStateChanged(QTextToSpeech::State state);
     void updateProgress(qint64 pos);
-    void initializeAudioInput(const QAudioDeviceInfo &deviceInfo);
-    void initializeAudioOutput(const QAudioDeviceInfo &deviceInfo);
     void displayErrorMessage();
+    void inputDeviceChanged(int index);
+    void outputDeviceChanged(int index);
+    void appendText(QString text);
+
+    void sslErrors(const QList<QSslError> &errors);
+    void httpFinished();
+    void httpReadyRead();
+    void onResponseFinish(QNetworkReply *response);
+
     void on_exitButton_clicked();
+    void on_clearButton_clicked();
     void on_recordButton_clicked();
+
     void on_micVolumeSlider_valueChanged(int value);
 
-    void on_clearButton_clicked();
+    void on_speechVolumeSlider_valueChanged(int value);
 
 private:
     void clearAudioLevels();
-    void setSpeechEngine();    
+    void setSpeechEngine();
+
+    QMediaFormat selectedMediaFormat() const;
 
     QTextToSpeech *m_speech = nullptr;
     QVector<QVoice> m_voices;
     int m_current_language_index{0};
 
-    QAudioEncoderSettings settings;
+    QMediaCaptureSession m_captureSession;
+    //QScopedPointer<QAudioOutput> m_audioOutput;
+    QMediaRecorder *m_audioRecorder = nullptr;
+    QList<AudioLevel*> m_audioLevels;
+
+    bool m_outputLocationSet = false;
+    bool m_updatingFormats = false;
+
+    const int maxDuration = 3000; // maximum recording duration allowed
+    const int minDuration = 1000; // minimium recording duration allowed
+    const unsigned sampleRate = 44100;
+    int recordDuration = 0; // recording duration in miliseconds
+
     QNetworkAccessManager *qnam;
-    QNetworkRequest request;
     QUrl url;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> reply;
+    QNetworkRequest request;
+
     const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString fileName = "record";
     QString filePath;
     QFile file;
-    const int maxDuration = 3000; // maximum recording duration allowed
-    const int minDuration = 1000; // minimium recording duration allowed
-    int recordDuration = 0; // recording duration in miliseconds
 
-    QAudioRecorder *m_audioRecorder = nullptr;
-    QScopedPointer<QAudioOutput> m_audioOutput;
-    QScopedPointer<QAudioInput> m_audioInput;
-    QAudioProbe *m_probe = nullptr;
-    QList<AudioLevel*> m_audioLevels;
-    bool m_outputLocationSet = false;
-    QByteArray byteArr;
+    Ui::Ai *ui = nullptr;
 
-private:
-    Ui::Ai *ui;
 };
+
 #endif // AI_H

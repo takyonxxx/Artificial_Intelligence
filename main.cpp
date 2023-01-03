@@ -1,11 +1,16 @@
+// Copyright (C) 2017 The Qt Company Ltd.
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
+
 #include "ai.h"
 
-#include <QApplication>
+#include <QtWidgets>
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-    Ai w;
-    w.show();
-    return a.exec();
+    QApplication app(argc, argv);
+
+    Ai recorder;
+    recorder.show();
+
+    return app.exec();
 }
