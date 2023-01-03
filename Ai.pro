@@ -8,6 +8,7 @@ CONFIG += c++17
 
 win32:INCLUDEPATH += $$PWD
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+HOME = $$system(echo $HOME)
 
 HEADERS = \
     ai.h \
@@ -26,7 +27,7 @@ FORMS += \
 macx{
     message("macx enabled")
     RC_ICONS = $$PWD/icons/ai.ico
-    INCLUDEPATH += /Users/turkaybiliyor/Qt/6.4.0/macos/include/
+    INCLUDEPATH += $$HOME/Qt/6.4.0/macos/include/
 }
 
 ios {
