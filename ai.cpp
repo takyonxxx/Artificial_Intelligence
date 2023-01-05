@@ -64,18 +64,18 @@ Ai::Ai()
 
     //http request
     qnam = new QNetworkAccessManager(this);
-    this->url.setUrl(baseApi);
-    this->url.setQuery("key=" + apiKey);
-    this->request.setUrl(this->url);
-    this->request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    //connect(qnam, &QNetworkAccessManager::finished, this, &Ai::onResponseFinish);
+
+    this->urlSpeech.setUrl(speechBaseApi);
+    this->urlSpeech.setQuery("key=" + speechApiKey);
+
+    this->urlSearch.setUrl(baseWikiApi);
 
     if (!this->location.exists())
         this->location.mkpath(".");
     filePath = location.filePath(fileName);
     m_audioRecorder->setOutputLocation(filePath);    
     file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:/") + ".wav");
-    appendText(tr("Recording file : %1").arg(file.fileName()));
+    appendText(tr("Record file : %1").arg(file.fileName()));
     m_outputLocationSet = true;
 
     setSpeechEngine();
@@ -107,8 +107,6 @@ Ai::Ai()
 
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-    appendText("Default microphone (" + inputDevice.description() + ')');
-
 }
 
 Ai::~Ai()
@@ -198,7 +196,7 @@ void Ai::sslErrors(const QList<QSslError> &errors)
 }
 
 void Ai::httpFinished()
-{
+{    
     if(reply->error() != QNetworkReply::NoError)
     {
         const QString &errorString = reply->errorString();
@@ -207,12 +205,11 @@ void Ai::httpFinished()
     reply.reset();
 }
 
-void Ai::httpReadyRead()
-{
+void Ai::httpSpeechReadyRead()
+{    
     auto data = QJsonDocument::fromJson(reply->readAll());
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
-    appendText(strFromJson);
 
     auto error = data["error"]["message"];
 
@@ -220,38 +217,15 @@ void Ai::httpReadyRead()
         auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
         if (command.size() > 0){
 
-            appendText(command);
-            m_speech->say(command);
+            appendText(command);            
+            searchText(command);
         }
         else
         {
             appendText("No response.");
-            m_speech->say("Şu an cevap veremiyorum.");
+            m_speech->say("Sizi anlayamadım. Lütfen tekrar deneyin.");
         }
     }
-}
-
-void Ai::onResponseFinish(QNetworkReply *response)
-{
-    auto data = QJsonDocument::fromJson(response->readAll());
-    response->deleteLater();
-
-    QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
-    appendText(strFromJson);
-
-    auto error = data["error"]["message"];
-
-    if (error.isUndefined()) {
-        auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
-        if (command.size() > 0){
-
-            appendText(command);
-        }
-        else
-        {
-            appendText("No response.");
-        }
-    }    
 }
 
 void Ai::translate()
@@ -281,13 +255,54 @@ void Ai::translate()
         }
     };
 
-//    qnam->post(this->request, data.toJson(QJsonDocument::Compact));
-
-    reply.reset(qnam->post(QNetworkRequest(url), data.toJson(QJsonDocument::Compact)));
+    reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
 
     connect(reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
     connect(reply.get(), &QNetworkReply::finished, this, &Ai::httpFinished);
-    connect(reply.get(), &QIODevice::readyRead, this, &Ai::httpReadyRead);
+    connect(reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
+}
+
+void Ai::httpSearchReadyRead()
+{
+    QString clearText{};
+    QString strReply = reply->readAll().toStdString().c_str();
+    auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
+    if(jsonResponse.isObject())
+    {
+        QJsonObject obj = jsonResponse.object();
+        QJsonObject::iterator itr = obj.find("query");
+        if(itr == obj.end())
+        {
+            // object not found.
+        }
+        else
+        {
+            auto jsonValue =jsonResponse["query"]["search"][0];
+            auto j_object = jsonValue.toObject();
+            foreach(const QString& key, j_object.keys()) {
+                QJsonValue value = j_object.value(key);
+                if(key.contains("snippet"))
+                {
+                    clearText = j_object.value(key).toString();
+                    QTextDocument doc;
+                    doc.setHtml(clearText);
+                    m_speech->say(doc.toPlainText());
+                }
+            }
+        }
+    }
+}
+
+void Ai::searchText(QString text)
+{    
+    QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(text);
+    this->urlSearch.setQuery(_query);
+
+    reply.reset(qnam->get(QNetworkRequest(urlSearch)));
+
+    connect(reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(reply.get(), &QNetworkReply::finished, this, &Ai::httpFinished);
+    connect(reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
 }
 
 static QVariant boxValue(const QComboBox *box)
@@ -315,7 +330,6 @@ void Ai::inputDeviceChanged(int index)
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
     appendText("Default microphone (" + inputDevice.description() + ')');
-
     //m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
 }
 
@@ -330,9 +344,9 @@ void Ai::outputDeviceChanged(int index)
 
     m_audioOutput->setDevice(ouputDevice);
 
-//    m_audioOutputSource = new QAudioSource(ouputDevice, format);
-//    m_audioOutputSource->setBufferSize(200);
-//    ioOutputDevice = m_audioOutputSource->start();
+    //m_audioOutputSource = new QAudioSource(ouputDevice, format);
+    //m_audioOutputSource->setBufferSize(200);
+    //ioOutputDevice = m_audioOutputSource->start();
     appendText("Default speaker (" + ouputDevice.description() + ')');
 }
 
@@ -348,8 +362,10 @@ void Ai::updateProgress(qint64 duration)
         this->m_audioRecorder->stop();
         translate();
     }
-
-    ui->statusbar->showMessage(tr("Recorded %1 sec").arg(duration / 1000));
+    else
+    {
+        ui->statusbar->showMessage(tr("Recorded %1 sec to %2").arg(duration / 1000).arg(m_audioRecorder->outputLocation().toString() + ".wav"));
+    }
 }
 
 void Ai::onStateChanged(QMediaRecorder::RecorderState state)
@@ -379,14 +395,18 @@ void Ai::onStateChanged(QMediaRecorder::RecorderState state)
 
 void Ai::onSpeechStateChanged(QTextToSpeech::State state)
 {
+    QString statusMessage;
+
     if (state == QTextToSpeech::Speaking) {
-        ui->statusbar->showMessage("Speech started...");
+        statusMessage = tr("Speech started...");
     } else if (state == QTextToSpeech::Ready)
-        ui->statusbar->showMessage("Speech stopped...", 2000);
+        statusMessage = tr("Speech stopped...");
     else if (state == QTextToSpeech::Paused)
-        ui->statusbar->showMessage("Speech paused...");
+        statusMessage = tr("Speech paused...");
     else
-        ui->statusbar->showMessage("Speech error!");
+        statusMessage = tr("Speech error!");
+
+     ui->statusbar->showMessage(statusMessage);
 }
 
 

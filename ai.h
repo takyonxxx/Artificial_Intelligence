@@ -20,6 +20,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTextToSpeech>
+#include <QTextDocument>
 #include <QDir>
 #include <QUrl>
 
@@ -44,6 +45,7 @@ public slots:
 private slots:
     void toggleRecord();
     void translate();
+    void searchText(QString text);
 
     void localeChanged(const QLocale &locale);
     void voiceSelected(int index);
@@ -60,8 +62,8 @@ private slots:
 
     void sslErrors(const QList<QSslError> &errors);
     void httpFinished();
-    void httpReadyRead();
-    void onResponseFinish(QNetworkReply *response);
+    void httpSpeechReadyRead();
+    void httpSearchReadyRead();
 
     void on_exitButton_clicked();
     void on_clearButton_clicked();
@@ -99,9 +101,9 @@ private:
     int recordDuration = 0; // recording duration in miliseconds
 
     QNetworkAccessManager *qnam;
-    QUrl url;
+    QUrl urlSpeech;
+    QUrl urlSearch;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> reply;
-    QNetworkRequest request;
 
     const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString fileName = "record";
