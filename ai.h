@@ -61,7 +61,8 @@ private slots:
     void appendText(QString text);
 
     void sslErrors(const QList<QSslError> &errors);
-    void httpFinished();
+    void httpSpeechFinished();
+    void httpSearchFinished();
     void httpSpeechReadyRead();
     void httpSearchReadyRead();
 
@@ -103,7 +104,9 @@ private:
     QNetworkAccessManager *qnam;
     QUrl urlSpeech;
     QUrl urlSearch;
-    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> reply;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> search_reply;
+
 
     const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString fileName = "record";

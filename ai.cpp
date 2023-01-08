@@ -191,23 +191,35 @@ void Ai::sslErrors(const QList<QSslError> &errors)
     if (QMessageBox::warning(this, tr("SSL Errors"),
                              tr("One or more SSL errors has occurred:\n%1").arg(errorString),
                              QMessageBox::Ignore | QMessageBox::Abort) == QMessageBox::Ignore) {
-        reply->ignoreSslErrors();
+        translate_reply->ignoreSslErrors();
+        search_reply->ignoreSslErrors();
     }
+    qDebug() << "sslErrors";
 }
 
-void Ai::httpFinished()
-{    
-    if(reply->error() != QNetworkReply::NoError)
+void Ai::httpSpeechFinished()
+{
+    if(translate_reply->error() != QNetworkReply::NoError)
     {
-        const QString &errorString = reply->errorString();
+        const QString &errorString = translate_reply->errorString();
         appendText(errorString);
     }
-    reply.reset();
+    translate_reply.reset();
+}
+
+void Ai::httpSearchFinished()
+{
+    if(search_reply->error() != QNetworkReply::NoError)
+    {
+        const QString &errorString = search_reply->errorString();
+        appendText(errorString);
+    }
+    search_reply.reset();
 }
 
 void Ai::httpSpeechReadyRead()
 {    
-    auto data = QJsonDocument::fromJson(reply->readAll());
+    auto data = QJsonDocument::fromJson(translate_reply->readAll());
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
 
@@ -255,17 +267,17 @@ void Ai::translate()
         }
     };
 
-    reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
+    translate_reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
 
-    connect(reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-    connect(reply.get(), &QNetworkReply::finished, this, &Ai::httpFinished);
-    connect(reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
+    connect(translate_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(translate_reply.get(), &QNetworkReply::finished, this, &Ai::httpSpeechFinished);
+    connect(translate_reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
 }
 
 void Ai::httpSearchReadyRead()
-{
+{    
     QString clearText{};
-    QString strReply = reply->readAll().toStdString().c_str();
+    QString strReply = search_reply->readAll().toStdString().c_str();
     auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
     if(jsonResponse.isObject())
     {
@@ -294,15 +306,15 @@ void Ai::httpSearchReadyRead()
 }
 
 void Ai::searchText(QString text)
-{    
+{        
     QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(text);
     this->urlSearch.setQuery(_query);
 
-    reply.reset(qnam->get(QNetworkRequest(urlSearch)));
+    search_reply.reset(qnam->get(QNetworkRequest(urlSearch)));
 
-    connect(reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-    connect(reply.get(), &QNetworkReply::finished, this, &Ai::httpFinished);
-    connect(reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
+    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpSearchFinished);
+    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
 }
 
 static QVariant boxValue(const QComboBox *box)
