@@ -68,7 +68,7 @@ Ai::Ai()
     this->urlSpeech.setUrl(speechBaseApi);
     this->urlSpeech.setQuery("key=" + speechApiKey);
 
-    this->urlSearch.setUrl(baseWikiApi);
+    this->urlSearch.setUrl(baseChatGPT);
 
     if (!this->location.exists())
         this->location.mkpath(".");
@@ -219,7 +219,7 @@ void Ai::httpSearchFinished()
 
 void Ai::httpSpeechReadyRead()
 {    
-    auto data = QJsonDocument::fromJson(translate_reply->readAll());
+    auto data = QJsonDocument::fromJson(translate_reply->readAll());    
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
 
@@ -252,10 +252,12 @@ void Ai::translate()
     file.close();
 
     QJsonDocument data {
-        QJsonObject { {
+        QJsonObject {
+            {
                 "audio",
                 QJsonObject { {"content", QJsonValue::fromVariant(fileData.toBase64())} }
-            },  {
+            },
+            {
                 "config",
                 QJsonObject {
                     {"encoding", "LINEAR16"},
@@ -263,7 +265,8 @@ void Ai::translate()
                     {"model", "command_and_search"},
                     {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)},
                     {"audioChannelCount", 2}
-                }}
+                }
+            }
         }
     };
 
@@ -278,24 +281,27 @@ void Ai::httpSearchReadyRead()
 {    
     QString clearText{};
     QString strReply = search_reply->readAll().toStdString().c_str();
+    qDebug() << "This is chatGPT : " << strReply;
+
     auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
     if(jsonResponse.isObject())
-    {
+    {        
         QJsonObject obj = jsonResponse.object();
-        QJsonObject::iterator itr = obj.find("query");
+        QJsonObject::iterator itr = obj.find("choices");
         if(itr == obj.end())
         {
             // object not found.
         }
         else
-        {
-            auto jsonValue =jsonResponse["query"]["search"][0];
+        {            
+            auto jsonValue = jsonResponse["choices"][0];
             auto j_object = jsonValue.toObject();
             foreach(const QString& key, j_object.keys()) {
                 QJsonValue value = j_object.value(key);
-                if(key.contains("snippet"))
+                if(key.contains("text"))
                 {
                     clearText = j_object.value(key).toString();
+                    clearText.replace("?", "");
                     QTextDocument doc;
                     doc.setHtml(clearText);
                     m_speech->say(doc.toPlainText());
@@ -307,10 +313,27 @@ void Ai::httpSearchReadyRead()
 
 void Ai::searchText(QString text)
 {        
-    QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(text);
-    this->urlSearch.setQuery(_query);
+//    QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(text);
+//    this->urlSearch.setQuery(_query);
+//    search_reply.reset(qnam->get(QNetworkRequest(urlSearch)));
 
-    search_reply.reset(qnam->get(QNetworkRequest(urlSearch)));
+    QJsonDocument data {
+        QJsonObject
+            {
+              {"model" , "text-davinci-003"},
+              {"prompt", text},
+              {"max_tokens", 100},
+              {"temperature", 0},
+              {"top_p", 1},
+            }
+    };
+
+    QNetworkRequest request(urlSearch);
+    request.setHeader( QNetworkRequest::ContentTypeHeader, "application/json" );
+    auto authorization = QString("Bearer %1").arg(chatGPTApiKey);
+    request.setRawHeader(QByteArray("Authorization"), authorization.toUtf8());
+
+    search_reply.reset(qnam->post(request, data.toJson(QJsonDocument::Compact)));
 
     connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
     connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpSearchFinished);
