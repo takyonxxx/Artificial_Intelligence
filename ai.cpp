@@ -236,6 +236,7 @@ void Ai::httpSpeechReadyRead()
         {
             appendText("No response.");
             m_speech->say("Sizi anlayamadım. Lütfen tekrar deneyin.");
+            m_recording = false;
         }
     }
 }
@@ -300,11 +301,12 @@ void Ai::httpSearchReadyRead()
                 QJsonValue value = j_object.value(key);
                 if(key.contains("text"))
                 {
-                    clearText = j_object.value(key).toString();
-                    clearText.replace("?", "");
+                    clearText = j_object.value(key).toString();                    
                     QTextDocument doc;
                     doc.setHtml(clearText);
+                    appendText(tr("%1").arg(clearText.simplified()));
                     m_speech->say(doc.toPlainText());
+                    m_recording = false;
                 }
             }
         }
@@ -484,6 +486,8 @@ void Ai::toggleRecord()
             m_audioInputSource = new QAudioSource(inputDevice, format);
             m_audioInputSource->setBufferSize(200);
 
+            m_recording = true;
+
             ioInputDevice = m_audioInputSource->start();
             connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
             appendText("Default microphone (" + inputDevice.description() + ')');
@@ -496,6 +500,7 @@ void Ai::toggleRecord()
 
         disconnect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
         m_audioRecorder->stop();
+        m_recording = false;
     }
 }
 
@@ -511,7 +516,7 @@ void Ai::clearAudioLevels()
 }
 
 // returns the audio level for each channel
-QList<qreal> getBufferLevels(const QAudioBuffer &buffer)
+QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
 {
     QList<qreal> values;
 
@@ -530,6 +535,13 @@ QList<qreal> getBufferLevels(const QAudioBuffer &buffer)
     for (int i = 0; i < buffer.frameCount(); ++i) {
         for (int j = 0; j < channels; ++j) {
             qreal value = qAbs(format.normalizedSampleValue(data));
+            if (value >= m_vox_sensitivity)
+            {
+                qDebug() << value;
+                if (!m_recording)
+                    toggleRecord();
+            }
+
             if (value > max_values.at(j))
                 max_values[j] = value;
             data += bytesPerSample;
@@ -587,5 +599,15 @@ void Ai::on_speechVolumeSlider_valueChanged(int value)
                                                QAudio::LinearVolumeScale);
     m_speech->setVolume(linearVolume);
     ui->labelSpeechLevelInfo->setText(QString::number(m_speech->volume() * 100, 'f', 0) + "%");
+}
+
+
+void Ai::on_voxSensivitySlider_valueChanged(int value)
+{
+    qreal linearVox = QAudio::convertVolume(value / qreal(100),
+                                               QAudio::LogarithmicVolumeScale,
+                                               QAudio::LinearVolumeScale);
+    m_vox_sensitivity = linearVox;
+    ui->labelVoxSensivityInfo->setText(QString::number(linearVox, 'f', 2));
 }
 

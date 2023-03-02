@@ -3,10 +3,10 @@
 #include <QString>
 
 static QString speechBaseApi = "https://speech.googleapis.com/v1/speech:recognize";
-static QString speechApiKey = "api key";
+static QString speechApiKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
 static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
 static QString baseChatGPT = "https://api.openai.com/v1/completions";
-static QString chatGPTApiKey = "api key";
+static QString chatGPTApiKey = "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";
 
 //curl https://api.openai.com/v1/completions \
 //  -H 'Content-Type: application/json' \

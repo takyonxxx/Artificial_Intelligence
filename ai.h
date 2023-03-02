@@ -41,6 +41,7 @@ public:
 
 public slots:
     void processBuffer(const QAudioBuffer&);
+    QList<qreal> getBufferLevels(const QAudioBuffer&);
 
 private slots:
     void toggleRecord();
@@ -73,6 +74,8 @@ private slots:
     void on_micVolumeSlider_valueChanged(int value);
     void on_speechVolumeSlider_valueChanged(int value);
 
+    void on_voxSensivitySlider_valueChanged(int value);
+
 private:
     void clearAudioLevels();
     void setSpeechEngine();
@@ -93,6 +96,8 @@ private:
     QList<AudioLevel*> m_audioLevels;
     QAudioFormat format;
 
+    bool m_recording = false;
+    float m_vox_sensitivity = 0.1;
     bool m_outputLocationSet = false;
     bool m_updatingFormats = false;
 
