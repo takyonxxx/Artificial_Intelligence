@@ -236,7 +236,6 @@ void Ai::httpSpeechReadyRead()
         {
             appendText("No response.");
             m_speech->say("Sizi anlayamadım. Lütfen tekrar deneyin.");
-            m_recording = false;
         }
     }
 }
@@ -305,8 +304,7 @@ void Ai::httpSearchReadyRead()
                     QTextDocument doc;
                     doc.setHtml(clearText);
                     appendText(tr("%1").arg(clearText.simplified()));
-                    m_speech->say(doc.toPlainText());
-                    m_recording = false;
+                    m_speech->say(doc.toPlainText());                    
                 }
             }
         }
@@ -385,6 +383,7 @@ void Ai::outputDeviceChanged(int index)
     //m_audioOutputSource->setBufferSize(200);
     //ioOutputDevice = m_audioOutputSource->start();
     appendText("Default speaker (" + ouputDevice.description() + ')');
+
 }
 
 void Ai::updateProgress(qint64 duration)
@@ -437,7 +436,10 @@ void Ai::onSpeechStateChanged(QTextToSpeech::State state)
     if (state == QTextToSpeech::Speaking) {
         statusMessage = tr("Speech started...");
     } else if (state == QTextToSpeech::Ready)
+    {
+        m_recording = false;
         statusMessage = tr("Speech stopped...");
+    }
     else if (state == QTextToSpeech::Paused)
         statusMessage = tr("Speech paused...");
     else
@@ -490,7 +492,7 @@ void Ai::toggleRecord()
 
             ioInputDevice = m_audioInputSource->start();
             connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-            appendText("Default microphone (" + inputDevice.description() + ')');
+            appendText("Recording with (" + inputDevice.description() + ')');
 
             m_audioRecorder->record();
         }
@@ -536,10 +538,12 @@ QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
         for (int j = 0; j < channels; ++j) {
             qreal value = qAbs(format.normalizedSampleValue(data));
             if (value >= m_vox_sensitivity)
-            {
-                qDebug() << value;
+            {               
                 if (!m_recording)
+                {
+                    qDebug() << value;
                     toggleRecord();
+                }
             }
 
             if (value > max_values.at(j))
@@ -604,6 +608,7 @@ void Ai::on_speechVolumeSlider_valueChanged(int value)
 
 void Ai::on_voxSensivitySlider_valueChanged(int value)
 {
+    qDebug()  << value;
     qreal linearVox = QAudio::convertVolume(value / qreal(100),
                                                QAudio::LogarithmicVolumeScale,
                                                QAudio::LinearVolumeScale);

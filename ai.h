@@ -97,7 +97,7 @@ private:
     QAudioFormat format;
 
     bool m_recording = false;
-    float m_vox_sensitivity = 0.1;
+    float m_vox_sensitivity = 0.3;
     bool m_outputLocationSet = false;
     bool m_updatingFormats = false;
 
