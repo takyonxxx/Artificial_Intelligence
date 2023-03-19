@@ -302,8 +302,8 @@ void Ai::httpSearchReadyRead()
                 {
                     clearText = j_object.value(key).toString();                    
                     QTextDocument doc;
-                    doc.setHtml(clearText);
-                    appendText(tr("%1").arg(clearText.simplified()));
+                    doc.setHtml(clearText.simplified().replace("?", ""));
+                    appendText(tr("%1").arg(doc.toPlainText()));
                     m_speech->say(doc.toPlainText());                    
                 }
             }
