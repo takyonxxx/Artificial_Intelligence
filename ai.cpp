@@ -15,6 +15,16 @@
 
 static QList<qreal> getBufferLevels(const QAudioBuffer &buffer);
 
+
+static QVariant boxValue(const QComboBox *box)
+{
+    int idx = box->currentIndex();
+    if (idx == -1)
+        return QVariant();
+
+    return box->itemData(idx);
+}
+
 Ai::Ai()
     : ui(new Ui::Ai)
 {
@@ -58,10 +68,6 @@ Ai::Ai()
     ui->recordTimeBox->addItem(QStringLiteral("3000"), QVariant(3000));
     ui->recordTimeBox->setCurrentIndex(1);
 
-    connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
-    connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
-    connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
-
     //http request
     qnam = new QNetworkAccessManager(this);
 
@@ -70,16 +76,11 @@ Ai::Ai()
 
     this->urlSearch.setUrl(baseChatGPT);
 
-    if (!this->location.exists())
-        this->location.mkpath(".");
-    filePath = location.filePath(fileName);
-    m_audioRecorder->setOutputLocation(filePath);    
-    file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:/") + ".wav");
-    appendText(tr("Record file : %1").arg(file.fileName()));
-    m_outputLocationSet = true;
+    connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
+    connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
+    connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
 
     setSpeechEngine();
-
 
     format.setSampleFormat(QAudioFormat::Int16);
     format.setSampleRate(44100);
@@ -107,6 +108,16 @@ Ai::Ai()
 
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+
+    updateFormats();
+
+    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+
+    m_audioRecorder->setOutputLocation(QUrl::fromLocalFile(desktopPath + "/record"));
+    m_outputLocationSet = true;
+    file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:/") + ".m4a");
+    appendText(tr("Record file : %1").arg(file.fileName()));
+
 }
 
 Ai::~Ai()
@@ -118,6 +129,49 @@ Ai::~Ai()
     delete m_audioRecorder;
     delete m_audioInputSource;
     delete m_audioOutputSource;
+}
+
+void Ai::updateFormats()
+{
+    if (m_updatingFormats)
+        return;
+    m_updatingFormats = true;
+
+    QMediaFormat format;
+    if (ui->containerBox->count())
+        format.setFileFormat(boxValue(ui->containerBox).value<QMediaFormat::FileFormat>());
+    if (ui->audioCodecBox->count())
+        format.setAudioCodec(boxValue(ui->audioCodecBox).value<QMediaFormat::AudioCodec>());
+
+    int currentIndex = 0;
+    ui->audioCodecBox->clear();
+//    ui->audioCodecBox->addItem(tr("Default audio codec"),
+//                               QVariant::fromValue(QMediaFormat::AudioCodec::Unspecified));
+    for (auto codec : format.supportedAudioCodecs(QMediaFormat::Encode)) {
+        if (codec == format.audioCodec())
+            currentIndex = ui->audioCodecBox->count();
+        if(codec == QMediaFormat::AudioCodec::FLAC)
+            ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
+                                       QVariant::fromValue(codec));
+    }
+    ui->audioCodecBox->setCurrentIndex(currentIndex);
+
+    currentIndex = 0;
+    ui->containerBox->clear();
+//    ui->containerBox->addItem(tr("Default file format"),
+//                              QVariant::fromValue(QMediaFormat::UnspecifiedFormat));
+    for (auto container : format.supportedFileFormats(QMediaFormat::Encode)) {
+        if (container < QMediaFormat::Mpeg4Audio) // Skip video formats
+            continue;
+        if (container == format.fileFormat())
+            currentIndex = ui->containerBox->count();
+        if(container == QMediaFormat::Mpeg4Audio)
+            ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
+                                      QVariant::fromValue(container));
+    }
+    ui->containerBox->setCurrentIndex(currentIndex);
+
+    m_updatingFormats = false;
 }
 
 void Ai::setSpeechEngine()
@@ -219,9 +273,11 @@ void Ai::httpSearchFinished()
 
 void Ai::httpSpeechReadyRead()
 {    
-    auto data = QJsonDocument::fromJson(translate_reply->readAll());    
+    auto data = QJsonDocument::fromJson(translate_reply->readAll());
+    qDebug() << data;
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
+    appendText(strFromJson);
 
     auto error = data["error"]["message"];
 
@@ -249,6 +305,8 @@ void Ai::translate()
     }
 
     QByteArray fileData = file.readAll();
+    qint64 fileSize = file.size();
+    qDebug()  << "open file:" << file.fileName() << fileSize;
     file.close();
 
     QJsonDocument data {
@@ -260,9 +318,11 @@ void Ai::translate()
             {
                 "config",
                 QJsonObject {
-                    {"encoding", "LINEAR16"},
+                    {"encoding", "FLAC"},
+//                    {"encoding", "LINEAR16"},
                     {"languageCode", "TR"},
                     {"model", "command_and_search"},
+                    {"enableWordTimeOffsets", false},
                     {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)},
                     {"audioChannelCount", 2}
                 }
@@ -340,15 +400,6 @@ void Ai::searchText(QString text)
     connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
 }
 
-static QVariant boxValue(const QComboBox *box)
-{
-    int idx = box->currentIndex();
-    if (idx == -1)
-        return QVariant();
-
-    return box->itemData(idx);
-}
-
 void Ai::inputDeviceChanged(int index)
 {
     const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
@@ -360,7 +411,7 @@ void Ai::inputDeviceChanged(int index)
 
     m_captureSession.audioInput()->setDevice(inputDevice);
     m_audioInputSource = new QAudioSource(inputDevice, format);
-    m_audioInputSource->setBufferSize(200);
+    m_audioInputSource->setBufferSize(0);
 
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
@@ -452,8 +503,10 @@ void Ai::onSpeechStateChanged(QTextToSpeech::State state)
 QMediaFormat Ai::selectedMediaFormat() const
 {
     QMediaFormat format;
-    format.setFileFormat(QMediaFormat::Wave);
-    format.setAudioCodec(QMediaFormat::AudioCodec::Wave);
+//    format.setFileFormat(QMediaFormat::Wave);
+//    format.setAudioCodec(QMediaFormat::AudioCodec::Wave);
+    format.setFileFormat(boxValue(ui->containerBox).value<QMediaFormat::FileFormat>());
+    format.setAudioCodec(boxValue(ui->audioCodecBox).value<QMediaFormat::AudioCodec>());
     return format;
 }
 
@@ -480,26 +533,27 @@ void Ai::toggleRecord()
             m_captureSession.audioInput()->setDevice(inputDevice);
             m_audioRecorder->setMediaFormat(selectedMediaFormat());
             m_audioRecorder->setAudioSampleRate(sampleRate);
-            m_audioRecorder->setAudioBitRate(0);
+            //m_audioRecorder->setAudioBitRate(8000);
             m_audioRecorder->setAudioChannelCount(2);
-            m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
-            m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
+            //m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
+            //m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
             m_audioInputSource = new QAudioSource(inputDevice, format);
-            m_audioInputSource->setBufferSize(200);
+            m_audioInputSource->setBufferSize(1024);
 
             m_recording = true;
 
             ioInputDevice = m_audioInputSource->start();
             connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-            appendText("Recording with (" + inputDevice.description() + ')');
 
             m_audioRecorder->record();
+            qDebug() << m_audioRecorder->recorderState();
+
+            appendText("Recording with (" + inputDevice.description() + ')');
         }
     }
     else
     {
-
         disconnect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
         m_audioRecorder->stop();
         m_recording = false;
@@ -537,14 +591,14 @@ QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
     for (int i = 0; i < buffer.frameCount(); ++i) {
         for (int j = 0; j < channels; ++j) {
             qreal value = qAbs(format.normalizedSampleValue(data));
-            if (value >= m_vox_sensitivity)
-            {               
-                if (!m_recording)
-                {
-                    qDebug() << value;
-                    toggleRecord();
-                }
-            }
+//            if (value >= m_vox_sensitivity)
+//            {
+//                if (!m_recording)
+//                {
+//                    qDebug() << value;
+//                    toggleRecord();
+//                }
+//            }
 
             if (value > max_values.at(j))
                 max_values[j] = value;

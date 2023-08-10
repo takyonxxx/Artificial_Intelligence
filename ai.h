@@ -60,6 +60,7 @@ private slots:
     void inputDeviceChanged(int index);
     void outputDeviceChanged(int index);
     void appendText(QString text);
+    void updateFormats();
 
     void sslErrors(const QList<QSslError> &errors);
     void httpSpeechFinished();
@@ -112,10 +113,7 @@ private:
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> search_reply;
 
-
-    const QDir location = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString fileName = "record";
-    QString filePath;
     QFile file;
 
     Ui::Ai *ui = nullptr;

@@ -1,14 +1,13 @@
 TEMPLATE = app
 
-QT += core gui multimedia network texttospeech
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT += multimedia texttospeech
+#QT += core gui multimedia network texttospeech
+#greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Ai
-CONFIG += c++17
+CONFIG += c++14
 
 win32:INCLUDEPATH += $$PWD
-DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
-HOME = $$system(echo $HOME)
 
 HEADERS = \
     ai.h \
@@ -27,7 +26,8 @@ FORMS += \
 macx{
     message("macx enabled")
     RC_ICONS = $$PWD/icons/ai.ico
-    INCLUDEPATH += $$HOME/Qt/6.4.0/macos/include/
+#    INCLUDEPATH += $$HOME/Qt/6.5.2/macos/include/
+#    QMAKE_INFO_PLIST = $$PWD/Info.plist.in
 }
 
 ios {
@@ -54,8 +54,9 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
-include(./shared/shared.pri)
-
 RESOURCES += \
     resources.qrc
+
+QT+=widgets
+include(./shared/shared.pri)
 
