@@ -150,7 +150,7 @@ void Ai::updateFormats()
     for (auto codec : format.supportedAudioCodecs(QMediaFormat::Encode)) {
         if (codec == format.audioCodec())
             currentIndex = ui->audioCodecBox->count();
-        if(codec == QMediaFormat::AudioCodec::FLAC)
+        if(codec == QMediaFormat::AudioCodec::Wave)
             ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
                                        QVariant::fromValue(codec));
     }
@@ -160,12 +160,10 @@ void Ai::updateFormats()
     ui->containerBox->clear();
 //    ui->containerBox->addItem(tr("Default file format"),
 //                              QVariant::fromValue(QMediaFormat::UnspecifiedFormat));
-    for (auto container : format.supportedFileFormats(QMediaFormat::Encode)) {
-        if (container < QMediaFormat::Mpeg4Audio) // Skip video formats
-            continue;
+    for (auto container : format.supportedFileFormats(QMediaFormat::Encode)) {        
         if (container == format.fileFormat())
             currentIndex = ui->containerBox->count();
-        if(container == QMediaFormat::Mpeg4Audio)
+        if(container == QMediaFormat::Wave)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
     }
@@ -318,17 +316,17 @@ void Ai::translate()
             {
                 "config",
                 QJsonObject {
-                    {"encoding", "FLAC"},
-//                    {"encoding", "LINEAR16"},
+//                    {"encoding", "FLAC"},
+                    {"encoding", "LINEAR16"},
                     {"languageCode", "TR"},
                     {"model", "command_and_search"},
-                    {"enableWordTimeOffsets", false},
+                    {"enableAutomaticPunctuation", true},
                     {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)},
                     {"audioChannelCount", 2}
                 }
             }
         }
-    };
+    };  
 
     translate_reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
 
@@ -533,13 +531,13 @@ void Ai::toggleRecord()
             m_captureSession.audioInput()->setDevice(inputDevice);
             m_audioRecorder->setMediaFormat(selectedMediaFormat());
             m_audioRecorder->setAudioSampleRate(sampleRate);
-            //m_audioRecorder->setAudioBitRate(8000);
+            m_audioRecorder->setAudioBitRate(8000);
             m_audioRecorder->setAudioChannelCount(2);
-            //m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
-            //m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
+            m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
+            m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
             m_audioInputSource = new QAudioSource(inputDevice, format);
-            m_audioInputSource->setBufferSize(1024);
+            m_audioInputSource->setBufferSize(8192);
 
             m_recording = true;
 
