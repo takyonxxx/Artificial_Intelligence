@@ -1,8 +1,7 @@
 TEMPLATE = app
 
-QT += multimedia texttospeech
-#QT += core gui multimedia network texttospeech
-#greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT += core gui multimedia network texttospeech
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Ai
 CONFIG += c++14
@@ -60,3 +59,5 @@ RESOURCES += \
 QT+=widgets
 include(./shared/shared.pri)
 
+#ffmpeg -list_devices true -f dshow -i null
+#ffmpeg -f dshow -t 30 -i "audio=Microphone (2- USB PnP Audio Device(EEPROM))" record.flac

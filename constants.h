@@ -6,7 +6,7 @@ static QString speechBaseApi = "https://speech.googleapis.com/v1/speech:recogniz
 static QString baseWikiApi = "https://tr.wikipedia.org/w/api.php";
 static QString baseChatGPT = "https://api.openai.com/v1/completions";
 static QString speechApiKey = "AIzaSyCY8Xg5wfn6Ld67287SGDBQPZvGCEN6Fsg";
-static QString chatGPTApiKey = "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";
+static QString chatGPTApiKey = "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";
 
 //curl https://api.openai.com/v1/completions \
 //  -H 'Content-Type: application/json' \
@@ -17,4 +17,5 @@ static QString chatGPTApiKey = "sk-bWSiR7PMSN72u4j76xO2T3BlbkFJplQYg7uEegAR3gIxw
 //  "max_tokens": 7,
 //  "temperature": 0
 //}'
+//https://platform.openai.com/account/api-keys
 #endif // CONSTANTS_H

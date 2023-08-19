@@ -33,7 +33,7 @@ Ai::Ai()
     ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
     ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
-    ui->textTerminal->setStyleSheet("font: 14pt; color: #00cccc; background-color: #001a1a;");
+    ui->textTerminal->setStyleSheet("font: 12pt; color: #00cccc; background-color: #001a1a;");
     ui->labelOutputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
     ui->audioOutputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
     ui->labelInputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
@@ -115,9 +115,9 @@ Ai::Ai()
 
     m_audioRecorder->setOutputLocation(QUrl::fromLocalFile(desktopPath + "/record"));
     m_outputLocationSet = true;
-    file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:/") + ".m4a");
+    file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:///") + ".flac");
     appendText(tr("Record file : %1").arg(file.fileName()));
-
+    translate();
 }
 
 Ai::~Ai()
@@ -150,7 +150,7 @@ void Ai::updateFormats()
     for (auto codec : format.supportedAudioCodecs(QMediaFormat::Encode)) {
         if (codec == format.audioCodec())
             currentIndex = ui->audioCodecBox->count();
-        if(codec == QMediaFormat::AudioCodec::Wave)
+//        if(codec == QMediaFormat::AudioCodec::Wave)
             ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
                                        QVariant::fromValue(codec));
     }
@@ -163,7 +163,7 @@ void Ai::updateFormats()
     for (auto container : format.supportedFileFormats(QMediaFormat::Encode)) {        
         if (container == format.fileFormat())
             currentIndex = ui->containerBox->count();
-        if(container == QMediaFormat::Wave)
+//        if(container == QMediaFormat::Wave)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
     }
@@ -177,7 +177,7 @@ void Ai::setSpeechEngine()
     m_speech->setPitch(0);
     connect(m_speech, &QTextToSpeech::localeChanged, this, &Ai::localeChanged);
     connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::onSpeechStateChanged);
-    disconnect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
+    connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
     ui->language->clear();
     // Populate the languages combobox before connecting its signal.
     const QVector<QLocale> locales = m_speech->availableLocales();
@@ -195,8 +195,7 @@ void Ai::setSpeechEngine()
             m_current_language_index = counter;
         }
         counter++;
-    }
-    connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
+    }   
     ui->language->setCurrentIndex(m_current_language_index);
 }
 
@@ -272,7 +271,6 @@ void Ai::httpSearchFinished()
 void Ai::httpSpeechReadyRead()
 {    
     auto data = QJsonDocument::fromJson(translate_reply->readAll());
-    qDebug() << data;
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
     appendText(strFromJson);
@@ -285,6 +283,7 @@ void Ai::httpSpeechReadyRead()
 
             appendText(command);            
             searchText(command);
+            qDebug() << command;
         }
         else
         {
@@ -316,13 +315,14 @@ void Ai::translate()
             {
                 "config",
                 QJsonObject {
-//                    {"encoding", "FLAC"},
-                    {"encoding", "LINEAR16"},
+                    {"encoding", "FLAC"},
+                   // {"encoding", "LINEAR16"},
                     {"languageCode", "TR"},
                     {"model", "command_and_search"},
                     {"enableAutomaticPunctuation", true},
                     {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)},
-                    {"audioChannelCount", 2}
+                    {"audioChannelCount", 2},
+                    {"enableWordTimeOffsets", false}
                 }
             }
         }
