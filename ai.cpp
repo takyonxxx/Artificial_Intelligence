@@ -117,7 +117,6 @@ Ai::Ai()
     m_outputLocationSet = true;
     file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:///") + ".flac");
     appendText(tr("Record file : %1").arg(file.fileName()));
-    translate();
 }
 
 Ai::~Ai()
@@ -138,39 +137,47 @@ void Ai::updateFormats()
     m_updatingFormats = true;
 
     QMediaFormat format;
+    const QList<QMediaFormat::AudioCodec> supportedAudioCodecs = format.supportedAudioCodecs(QMediaFormat::Decode);
+    const QList<QMediaFormat::FileFormat> supportedFileFormats = format.supportedFileFormats(QMediaFormat::Decode);
+
     if (ui->containerBox->count())
         format.setFileFormat(boxValue(ui->containerBox).value<QMediaFormat::FileFormat>());
     if (ui->audioCodecBox->count())
         format.setAudioCodec(boxValue(ui->audioCodecBox).value<QMediaFormat::AudioCodec>());
 
-    int currentIndex = 0;
+    int currentIndex = -1; // Initialize with -1 to indicate no selection
     ui->audioCodecBox->clear();
-//    ui->audioCodecBox->addItem(tr("Default audio codec"),
-//                               QVariant::fromValue(QMediaFormat::AudioCodec::Unspecified));
-    for (auto codec : format.supportedAudioCodecs(QMediaFormat::Encode)) {
+    for (int i = 0; i < supportedAudioCodecs.size(); ++i) {
+        auto codec = supportedAudioCodecs.at(i);
         if (codec == format.audioCodec())
-            currentIndex = ui->audioCodecBox->count();
-//        if(codec == QMediaFormat::AudioCodec::Wave)
+            currentIndex = i;
+        if (ui->audioCodecBox->findData(QVariant::fromValue(codec)) == -1) {
+            if(codec == QMediaFormat::AudioCodec::FLAC)
             ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
                                        QVariant::fromValue(codec));
+        }
     }
-    ui->audioCodecBox->setCurrentIndex(currentIndex);
+    if (currentIndex != -1)
+        ui->audioCodecBox->setCurrentIndex(currentIndex);
 
-    currentIndex = 0;
+    currentIndex = -1; // Reset currentIndex
     ui->containerBox->clear();
-//    ui->containerBox->addItem(tr("Default file format"),
-//                              QVariant::fromValue(QMediaFormat::UnspecifiedFormat));
-    for (auto container : format.supportedFileFormats(QMediaFormat::Encode)) {        
+    for (int i = 0; i < supportedFileFormats.size(); ++i) {
+        auto container = supportedFileFormats.at(i);
         if (container == format.fileFormat())
-            currentIndex = ui->containerBox->count();
-//        if(container == QMediaFormat::Wave)
+            currentIndex = i;
+        if (ui->containerBox->findData(QVariant::fromValue(container)) == -1) {
+            if(container == QMediaFormat::FLAC)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
+        }
     }
-    ui->containerBox->setCurrentIndex(currentIndex);
+    if (currentIndex != -1)
+        ui->containerBox->setCurrentIndex(currentIndex);
 
     m_updatingFormats = false;
 }
+
 
 void Ai::setSpeechEngine()
 {
@@ -561,6 +568,7 @@ void Ai::toggleRecord()
 void Ai::displayErrorMessage()
 {
     ui->statusbar->showMessage(m_audioRecorder->errorString());
+    appendText(m_audioRecorder->errorString());
 }
 
 void Ai::clearAudioLevels()
