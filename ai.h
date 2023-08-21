@@ -11,6 +11,7 @@
 #include <QAudioSource>
 #include <QAudioOutput>
 #include <QAudioSink>
+#include <QMediaFormat>
 #include <QMediaCaptureSession>
 #include <QStandardPaths>
 #include <QNetworkAccessManager>
@@ -61,6 +62,7 @@ private slots:
     void outputDeviceChanged(int index);
     void appendText(QString text);
     void updateFormats();
+    void setOutputFile();
 
     void sslErrors(const QList<QSslError> &errors);
     void httpSpeechFinished();
@@ -95,7 +97,7 @@ private:
     QIODevice *ioOutputDevice = nullptr;
     QAudioOutput *m_audioOutput = nullptr;
     QList<AudioLevel*> m_audioLevels;
-    QAudioFormat format;
+    QAudioFormat audio_format;
 
     bool m_recording = false;
     float m_vox_sensitivity = 0.3;
@@ -114,7 +116,25 @@ private:
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> search_reply;
 
     const QString fileName = "record";
+    QString ext = ".flac";
     QFile file;
+
+
+    // Map between FileFormat and file extensions
+    const QMap<QMediaFormat::FileFormat, QString> formatToExtension = {
+                                                                       { QMediaFormat::FileFormat::Mpeg4Audio, ".m4a" },
+                                                                       { QMediaFormat::FileFormat::AAC, ".aac" },
+                                                                       { QMediaFormat::FileFormat::WMA, ".wma" },
+                                                                       { QMediaFormat::FileFormat::MP3, ".mp3" },
+                                                                       { QMediaFormat::FileFormat::FLAC, ".flac" },
+                                                                       { QMediaFormat::FileFormat::Wave, ".wav" },
+                                                                       { QMediaFormat::FileFormat::Ogg, ".ogg" },
+
+                                                                       };
+
+    QString getOutputExtension(const QMediaFormat::FileFormat selectedFormat) {
+        return formatToExtension.value(static_cast<QMediaFormat::FileFormat>(selectedFormat), "unknown");
+    }
 
     Ui::Ai *ui = nullptr;
 

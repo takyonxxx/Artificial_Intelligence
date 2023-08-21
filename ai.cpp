@@ -80,43 +80,11 @@ Ai::Ai()
     connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
     connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
 
-    setSpeechEngine();
-
-    format.setSampleFormat(QAudioFormat::Int16);
-    format.setSampleRate(44100);
-    format.setChannelCount(2);
-
-    qDeleteAll(m_audioLevels);
-    m_audioLevels.clear();
-    for (int i = 0; i < format.channelCount(); ++i) {
-        AudioLevel *level = new AudioLevel(ui->centralwidget);
-        level->setMinimumSize(QSize(0,50));
-        m_audioLevels.append(level);
-        ui->levelsLayout->addWidget(level);
-    }
-
     m_audioOutput = new QAudioOutput(this);
 
-    const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
-    if (inputDevice.isNull()) {
-        QMessageBox::warning(nullptr, "audio",
-                             "There is no audio input device available.");
-    }
-
-    m_audioInputSource = new QAudioSource(inputDevice, format);
-    m_audioInputSource->setBufferSize(200);
-
-    ioInputDevice = m_audioInputSource->start();
-    connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-
+    setSpeechEngine();
     updateFormats();
-
-    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-
-    m_audioRecorder->setOutputLocation(QUrl::fromLocalFile(desktopPath + "/record"));
-    m_outputLocationSet = true;
-    file.setFileName("/" + this->m_audioRecorder->outputLocation().toString().remove("file:///") + ".m4a");
-    appendText(tr("Record file : %1").arg(file.fileName()));
+    setOutputFile();
 }
 
 Ai::~Ai()
@@ -164,10 +132,11 @@ void Ai::updateFormats()
     ui->containerBox->clear();
     for (int i = 0; i < supportedFileFormats.size(); ++i) {
         auto container = supportedFileFormats.at(i);
+        qDebug() << container;
         if (container == format.fileFormat())
             currentIndex = i;
         if (ui->containerBox->findData(QVariant::fromValue(container)) == -1) {
-            if(container == QMediaFormat::Mpeg4Audio)
+            if(container == QMediaFormat::Mpeg4Audio || container == QMediaFormat::FLAC || container == QMediaFormat::AAC || container == QMediaFormat::Wave)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
         }
@@ -178,6 +147,29 @@ void Ai::updateFormats()
     m_updatingFormats = false;
 }
 
+void Ai::setOutputFile()
+{
+    QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+
+    m_audioRecorder->setOutputLocation(QUrl::fromLocalFile(desktopPath + "/record"));
+    m_outputLocationSet = true;
+
+    auto format = selectedMediaFormat();
+
+    QString outputExtension = getOutputExtension(format.fileFormat());
+    ext = outputExtension;
+    qDebug() << "Output Extension:" << outputExtension;
+
+    if(file.exists())
+        file.remove();
+
+
+    if(desktopPath.contains("C:/"))
+        file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:///") + ext);
+    else
+        file.setFileName("/" + this->m_audioRecorder->outputLocation().toString().remove("file:///") + ext);
+    appendText(tr("Record file : %1").arg(file.fileName()));
+}
 
 void Ai::setSpeechEngine()
 {
@@ -407,16 +399,11 @@ void Ai::searchText(QString text)
 
 void Ai::inputDeviceChanged(int index)
 {
-    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
-    if (!inputDevice.isFormatSupported(format))
-    {
-            qWarning() << "Raw audio format not supported by backend, cannot play audio.";
-            return;
-    }
+    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();  
 
     m_captureSession.audioInput()->setDevice(inputDevice);
-    m_audioInputSource = new QAudioSource(inputDevice, format);
-    m_audioInputSource->setBufferSize(0);
+    m_audioInputSource = new QAudioSource(inputDevice, audio_format);
+    m_audioInputSource->setBufferSize(1024);
 
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
@@ -426,20 +413,9 @@ void Ai::inputDeviceChanged(int index)
 
 void Ai::outputDeviceChanged(int index)
 {
-    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();
-    if (!ouputDevice.isFormatSupported(format))
-    {
-            qWarning() << "Raw audio format not supported by backend, cannot play audio.";
-            return;
-    }
-
+    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();    
     m_audioOutput->setDevice(ouputDevice);
-
-    //m_audioOutputSource = new QAudioSource(ouputDevice, format);
-    //m_audioOutputSource->setBufferSize(200);
-    //ioOutputDevice = m_audioOutputSource->start();
     appendText("Default speaker (" + ouputDevice.description() + ')');
-
 }
 
 void Ai::updateProgress(qint64 duration)
@@ -508,8 +484,7 @@ void Ai::onSpeechStateChanged(QTextToSpeech::State state)
 QMediaFormat Ai::selectedMediaFormat() const
 {
     QMediaFormat format;
-//    format.setFileFormat(QMediaFormat::Wave);
-//    format.setAudioCodec(QMediaFormat::AudioCodec::Wave);
+    format.resolveForEncoding(QMediaFormat::NoFlags);
     format.setFileFormat(boxValue(ui->containerBox).value<QMediaFormat::FileFormat>());
     format.setAudioCodec(boxValue(ui->audioCodecBox).value<QMediaFormat::AudioCodec>());
     return format;
@@ -521,41 +496,46 @@ void Ai::appendText(QString text)
     ui->textTerminal->append(text);
 }
 
-
 void Ai::toggleRecord()
 {
     if (m_audioRecorder->recorderState() == QMediaRecorder::StoppedState) {
 
-        if(file.exists())
-            file.remove();
+        setOutputFile();
+        auto format = selectedMediaFormat();
 
         this->recordDuration = boxValue(ui->recordTimeBox).toInt();
-
         auto inputDevice = boxValue(ui->audioInputDeviceBox).value<QAudioDevice>();
 
-        if(inputDevice.isFormatSupported(format))
-        {
-            m_captureSession.audioInput()->setDevice(inputDevice);
-            m_audioRecorder->setMediaFormat(selectedMediaFormat());
-            m_audioRecorder->setAudioSampleRate(sampleRate);
-            m_audioRecorder->setAudioBitRate(8000);
-            m_audioRecorder->setAudioChannelCount(2);
-            m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
-            m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
+        m_captureSession.audioInput()->setDevice(inputDevice);
+        m_audioRecorder->setMediaFormat(format);
+        m_audioRecorder->setAudioSampleRate(sampleRate);
+       // m_audioRecorder->setAudioBitRate(8000);
+        m_audioRecorder->setAudioChannelCount(2);
+        m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
+        m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
-            m_audioInputSource = new QAudioSource(inputDevice, format);
-            m_audioInputSource->setBufferSize(8192);
+        qDeleteAll(m_audioLevels);
+        audio_format.setSampleFormat(QAudioFormat::Int16);
+        audio_format.setSampleRate(44100);
+        audio_format.setChannelCount(2);
 
-            m_recording = true;
-
-            ioInputDevice = m_audioInputSource->start();
-            connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
-
-            m_audioRecorder->record();
-            qDebug() << m_audioRecorder->recorderState();
-
-            appendText("Recording with (" + inputDevice.description() + ')');
+        m_audioLevels.clear();
+        for (int i = 0; i < audio_format.channelCount(); ++i) {
+            AudioLevel *level = new AudioLevel(ui->centralwidget);
+            level->setMinimumSize(QSize(0,50));
+            m_audioLevels.append(level);
+            ui->levelsLayout->addWidget(level);
         }
+
+        m_audioInputSource = new QAudioSource(inputDevice, audio_format);
+        m_audioInputSource->setBufferSize(1024);
+
+        ioInputDevice = m_audioInputSource->start();
+        connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
+
+        m_audioRecorder->record();
+        m_recording = true;
+        appendText("Recording with (" + inputDevice.description() + ')');
     }
     else
     {
@@ -569,6 +549,7 @@ void Ai::displayErrorMessage()
 {
     ui->statusbar->showMessage(m_audioRecorder->errorString());
     appendText(m_audioRecorder->errorString());
+    m_recording = false;
 }
 
 void Ai::clearAudioLevels()
@@ -626,7 +607,7 @@ void Ai::micBufferReady()
 {
     qint64 bytes = m_audioInputSource->bytesAvailable();
     auto buffer = ioInputDevice->read(bytes);
-    const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, format);
+    const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, audio_format);
     processBuffer(audioBuffer);
 }
 
