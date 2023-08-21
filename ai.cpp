@@ -115,7 +115,7 @@ Ai::Ai()
 
     m_audioRecorder->setOutputLocation(QUrl::fromLocalFile(desktopPath + "/record"));
     m_outputLocationSet = true;
-    file.setFileName(this->m_audioRecorder->outputLocation().toString().remove("file:///") + ".flac");
+    file.setFileName("/" + this->m_audioRecorder->outputLocation().toString().remove("file:///") + ".m4a");
     appendText(tr("Record file : %1").arg(file.fileName()));
 }
 
@@ -152,7 +152,7 @@ void Ai::updateFormats()
         if (codec == format.audioCodec())
             currentIndex = i;
         if (ui->audioCodecBox->findData(QVariant::fromValue(codec)) == -1) {
-            if(codec == QMediaFormat::AudioCodec::FLAC)
+        if(codec == QMediaFormat::AudioCodec::FLAC)
             ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
                                        QVariant::fromValue(codec));
         }
@@ -167,7 +167,7 @@ void Ai::updateFormats()
         if (container == format.fileFormat())
             currentIndex = i;
         if (ui->containerBox->findData(QVariant::fromValue(container)) == -1) {
-            if(container == QMediaFormat::FLAC)
+            if(container == QMediaFormat::Mpeg4Audio)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
         }
