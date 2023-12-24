@@ -76,7 +76,6 @@ private slots:
 
     void on_micVolumeSlider_valueChanged(int value);
     void on_speechVolumeSlider_valueChanged(int value);
-
     void on_voxSensivitySlider_valueChanged(int value);
 
 private:
@@ -93,9 +92,10 @@ private:
     QMediaRecorder *m_audioRecorder = nullptr;
     QAudioSource *m_audioInputSource = nullptr;
     QAudioSource *m_audioOutputSource = nullptr;
+    QAudioOutput *m_audioOutput = nullptr;
+    QAudioInput* m_audioInput = nullptr;
     QIODevice *ioInputDevice = nullptr;
     QIODevice *ioOutputDevice = nullptr;
-    QAudioOutput *m_audioOutput = nullptr;
     QList<AudioLevel*> m_audioLevels;
     QAudioFormat audio_format;
 
@@ -106,7 +106,8 @@ private:
 
     const int maxDuration = 3000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed
-    const unsigned sampleRate = 44100;
+    const unsigned sampleRate = 48000;
+    const unsigned channelCount = 2;
     int recordDuration = 0; // recording duration in miliseconds
 
     QNetworkAccessManager *qnam;

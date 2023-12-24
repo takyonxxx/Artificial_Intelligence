@@ -45,8 +45,8 @@ Ai::Ai()
     appendText(tr("Device supports OpenSSL: %1").arg((QSslSocket::supportsSsl()) ? "Yes" : "No"));
 
     m_audioRecorder = new QMediaRecorder(this);
-    m_captureSession.setRecorder(m_audioRecorder);
-    m_captureSession.setAudioInput(new QAudioInput(this));
+    m_audioOutput = new QAudioOutput(this);
+    m_audioInput = new QAudioInput(this);
     m_speech = new QTextToSpeech(this);
 
     //audio devices    
@@ -66,7 +66,7 @@ Ai::Ai()
     ui->recordTimeBox->addItem(QStringLiteral("1000"), QVariant(1000));
     ui->recordTimeBox->addItem(QStringLiteral("2000"), QVariant(2000));
     ui->recordTimeBox->addItem(QStringLiteral("3000"), QVariant(3000));
-    ui->recordTimeBox->setCurrentIndex(1);
+    ui->recordTimeBox->setCurrentIndex(2);
 
     //http request
     qnam = new QNetworkAccessManager(this);
@@ -74,13 +74,9 @@ Ai::Ai()
     this->urlSpeech.setUrl(speechBaseApi);
     this->urlSpeech.setQuery("key=" + speechApiKey);
 
-    this->urlSearch.setUrl(baseChatGPT);
-
     connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
     connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
-    connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
-
-    m_audioOutput = new QAudioOutput(this);
+    connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);    
 
     setSpeechEngine();
     updateFormats();
@@ -120,7 +116,7 @@ void Ai::updateFormats()
         if (codec == format.audioCodec())
             currentIndex = i;
         if (ui->audioCodecBox->findData(QVariant::fromValue(codec)) == -1) {
-        if(codec == QMediaFormat::AudioCodec::FLAC)
+            if(codec == QMediaFormat::AudioCodec::Wave)
             ui->audioCodecBox->addItem(QMediaFormat::audioCodecDescription(codec),
                                        QVariant::fromValue(codec));
         }
@@ -136,7 +132,7 @@ void Ai::updateFormats()
         if (container == format.fileFormat())
             currentIndex = i;
         if (ui->containerBox->findData(QVariant::fromValue(container)) == -1) {
-            if(container == QMediaFormat::Mpeg4Audio || container == QMediaFormat::FLAC || container == QMediaFormat::AAC || container == QMediaFormat::Wave)
+            if(container == QMediaFormat::Wave)
             ui->containerBox->addItem(QMediaFormat::fileFormatDescription(container),
                                       QVariant::fromValue(container));
         }
@@ -158,7 +154,6 @@ void Ai::setOutputFile()
 
     QString outputExtension = getOutputExtension(format.fileFormat());
     ext = outputExtension;
-    qDebug() << "Output Extension:" << outputExtension;
 
     if(file.exists())
         file.remove();
@@ -271,18 +266,16 @@ void Ai::httpSpeechReadyRead()
 {    
     auto data = QJsonDocument::fromJson(translate_reply->readAll());
 
-    QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
-    appendText(strFromJson);
-
+    QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();    
     auto error = data["error"]["message"];
 
     if (error.isUndefined()) {
         auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
         if (command.size() > 0){
 
-            appendText(command);            
-            searchText(command);
+            appendText(command);
             qDebug() << command;
+            m_speech->say(command);
         }
         else
         {
@@ -302,27 +295,61 @@ void Ai::translate()
 
     QByteArray fileData = file.readAll();
     qint64 fileSize = file.size();
-    qDebug()  << "open file:" << file.fileName() << fileSize;
+    qDebug()  << "open file:" << file.fileName() << fileSize << sampleRate;
+
+    // Seek to the position of sample rate in the WAV header (byte 24-27)
+    if (!file.seek(24)) {
+       qDebug() << "Error seeking to the sample rate position.";
+       file.close();
+       return;
+    }
+
+    // Read the sample rate (4 bytes, little-endian)
+    int sampleRate;
+    if (file.read(reinterpret_cast<char*>(&sampleRate), sizeof(sampleRate)) != sizeof(sampleRate)) {
+       qDebug() << "Error reading the sample rate.";
+       file.close();
+       return;
+    }
+
+    // Move the file cursor to the position of the channel count (byte 22)
+    if (!file.seek(22)) {
+       qDebug() << "Error seeking to the channel count position.";
+       file.close();
+       return;
+    }
+
+    // Read the channel count (2 bytes, little-endian)
+    quint16 channelCount;
+    if (file.read(reinterpret_cast<char*>(&channelCount), sizeof(channelCount)) != sizeof(channelCount)) {
+       qDebug() << "Error reading the channel count.";
+       file.close();
+       return;
+    }
+
+    // Print the sample rate and channel count
+    qDebug() << "Sample Rate:" << sampleRate << "Hz";
+    qDebug() << "Channel Count:" << channelCount;
+
     file.close();
+
+    QJsonObject config {
+        {"encoding", "LINEAR16"},
+        {"languageCode", "TR"},
+        {"model", "command_and_search"},
+        {"enableAutomaticPunctuation", true},
+        {"audioChannelCount", channelCount},
+        {"enableWordTimeOffsets", false},
+        {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)}
+    };
 
     QJsonDocument data {
         QJsonObject {
             {
-                "audio",
-                QJsonObject { {"content", QJsonValue::fromVariant(fileData.toBase64())} }
+                "audio", QJsonObject { {"content", QJsonValue::fromVariant(fileData.toBase64())} }
             },
             {
-                "config",
-                QJsonObject {
-                    {"encoding", "FLAC"},
-                   // {"encoding", "LINEAR16"},
-                    {"languageCode", "TR"},
-                    {"model", "command_and_search"},
-                    {"enableAutomaticPunctuation", true},
-                    {"sampleRateHertz", QJsonValue::fromVariant(sampleRate)},
-                    {"audioChannelCount", 2},
-                    {"enableWordTimeOffsets", false}
-                }
+                "config", config
             }
         }
     };  
@@ -338,77 +365,47 @@ void Ai::httpSearchReadyRead()
 {    
     QString clearText{};
     QString strReply = search_reply->readAll().toStdString().c_str();
-    qDebug() << "This is chatGPT : " << strReply;
 
     auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
     if(jsonResponse.isObject())
     {        
-        QJsonObject obj = jsonResponse.object();
-        QJsonObject::iterator itr = obj.find("choices");
-        if(itr == obj.end())
-        {
-            // object not found.
-        }
-        else
-        {            
-            auto jsonValue = jsonResponse["choices"][0];
-            auto j_object = jsonValue.toObject();
-            foreach(const QString& key, j_object.keys()) {
-                QJsonValue value = j_object.value(key);
-                if(key.contains("text"))
-                {
-                    clearText = j_object.value(key).toString();                    
-                    QTextDocument doc;
-                    doc.setHtml(clearText.simplified().replace("?", ""));
-                    appendText(tr("%1").arg(doc.toPlainText()));
-                    m_speech->say(doc.toPlainText());                    
-                }
-            }
-        }
+        QJsonObject obj = jsonResponse.object();       
     }
 }
 
 void Ai::searchText(QString text)
-{        
-//    QString _query =QString("action=query&format=json&list=search&srsearch=%1").arg(text);
-//    this->urlSearch.setQuery(_query);
-//    search_reply.reset(qnam->get(QNetworkRequest(urlSearch)));
+{
+//    QJsonDocument data {
+//        QJsonObject
+//            {
+//
+//            }
+//    };
 
-    QJsonDocument data {
-        QJsonObject
-            {
-              {"model" , "text-davinci-003"},
-              {"prompt", text},
-              {"max_tokens", 100},
-              {"temperature", 0},
-              {"top_p", 1},
-            }
-    };
+//    QNetworkRequest request(urlSearch);
+//    request.setHeader( QNetworkRequest::ContentTypeHeader, "application/json" );
+//    auto authorization = QString("Bearer %1").arg(ApiKey);
+//    request.setRawHeader(QByteArray("Authorization"), authorization.toUtf8());
 
-    QNetworkRequest request(urlSearch);
-    request.setHeader( QNetworkRequest::ContentTypeHeader, "application/json" );
-    auto authorization = QString("Bearer %1").arg(chatGPTApiKey);
-    request.setRawHeader(QByteArray("Authorization"), authorization.toUtf8());
+//    search_reply.reset(qnam->post(request, data.toJson(QJsonDocument::Compact)));
 
-    search_reply.reset(qnam->post(request, data.toJson(QJsonDocument::Compact)));
-
-    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpSearchFinished);
-    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
+//    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+//    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpSearchFinished);
+//    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
 }
 
 void Ai::inputDeviceChanged(int index)
 {
-    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();  
+    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
+    m_audioInput->setDevice(inputDevice);
+    m_captureSession.setAudioInput(m_audioInput);
 
-    m_captureSession.audioInput()->setDevice(inputDevice);
     m_audioInputSource = new QAudioSource(inputDevice, audio_format);
     m_audioInputSource->setBufferSize(1024);
 
     ioInputDevice = m_audioInputSource->start();
     connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
     appendText("Default microphone (" + inputDevice.description() + ')');
-    //m_captureSession.audioInput()->setDevice(ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>());
 }
 
 void Ai::outputDeviceChanged(int index)
@@ -500,24 +497,25 @@ void Ai::toggleRecord()
 {
     if (m_audioRecorder->recorderState() == QMediaRecorder::StoppedState) {
 
-        setOutputFile();
         auto format = selectedMediaFormat();
 
         this->recordDuration = boxValue(ui->recordTimeBox).toInt();
         auto inputDevice = boxValue(ui->audioInputDeviceBox).value<QAudioDevice>();
 
-        m_captureSession.audioInput()->setDevice(inputDevice);
         m_audioRecorder->setMediaFormat(format);
         m_audioRecorder->setAudioSampleRate(sampleRate);
-       // m_audioRecorder->setAudioBitRate(8000);
-        m_audioRecorder->setAudioChannelCount(2);
+        m_audioRecorder->setAudioChannelCount(channelCount);
         m_audioRecorder->setQuality(QMediaRecorder::HighQuality);
         m_audioRecorder->setEncodingMode(QMediaRecorder::ConstantQualityEncoding);
 
         qDeleteAll(m_audioLevels);
         audio_format.setSampleFormat(QAudioFormat::Int16);
-        audio_format.setSampleRate(44100);
-        audio_format.setChannelCount(2);
+        audio_format.setSampleRate(sampleRate);
+        audio_format.setChannelCount(channelCount);
+
+        m_captureSession.setRecorder(m_audioRecorder);
+        m_audioInput->setDevice(inputDevice);
+        m_captureSession.setAudioInput(m_audioInput);
 
         m_audioLevels.clear();
         for (int i = 0; i < audio_format.channelCount(); ++i) {
@@ -529,7 +527,6 @@ void Ai::toggleRecord()
 
         m_audioInputSource = new QAudioSource(inputDevice, audio_format);
         m_audioInputSource->setBufferSize(1024);
-
         ioInputDevice = m_audioInputSource->start();
         connect(ioInputDevice, &QIODevice::readyRead, this, &Ai::micBufferReady);
 
@@ -649,7 +646,6 @@ void Ai::on_speechVolumeSlider_valueChanged(int value)
 
 void Ai::on_voxSensivitySlider_valueChanged(int value)
 {
-    qDebug()  << value;
     qreal linearVox = QAudio::convertVolume(value / qreal(100),
                                                QAudio::LogarithmicVolumeScale,
                                                QAudio::LinearVolumeScale);

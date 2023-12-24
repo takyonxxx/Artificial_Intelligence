@@ -4,7 +4,7 @@ QT += core gui multimedia network texttospeech
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Ai
-CONFIG += c++14
+CONFIG += c++17
 
 win32:INCLUDEPATH += $$PWD
 
