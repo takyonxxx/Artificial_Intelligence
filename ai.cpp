@@ -73,6 +73,7 @@ Ai::Ai()
 
     this->urlSpeech.setUrl(speechBaseApi);
     this->urlSpeech.setQuery("key=" + speechApiKey);
+    this->urlLanguageTranslate.setUrl("https://translated-mymemory---translation-memory.p.rapidapi.com/get");
 
     connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
     connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
@@ -80,7 +81,7 @@ Ai::Ai()
 
     setSpeechEngine();
     updateFormats();
-    setOutputFile();
+    setOutputFile();    
 }
 
 Ai::~Ai()
@@ -183,7 +184,7 @@ void Ai::setSpeechEngine()
                      .arg(QLocale::countryToString(locale.country())));
         QVariant localeVariant(locale);
         ui->language->addItem(name, localeVariant);
-        if (name.contains("Turkish"))
+        if (name.contains("English (United States)"))
         {
             current = locale;
             m_current_language_index = counter;
@@ -252,7 +253,7 @@ void Ai::httpSpeechFinished()
     translate_reply.reset();
 }
 
-void Ai::httpSearchFinished()
+void Ai::httpTranslateFinished()
 {
     if(search_reply->error() != QNetworkReply::NoError)
     {
@@ -274,18 +275,16 @@ void Ai::httpSpeechReadyRead()
         if (command.size() > 0){
 
             appendText(command);
-            qDebug() << command;
-            m_speech->say(command);
+            translateText(command, "tr|en");
         }
         else
         {
             appendText("No response.");
-            m_speech->say("Sizi anlayamadım. Lütfen tekrar deneyin.");
         }
     }
 }
 
-void Ai::translate()
+void Ai::speechVoice()
 {
 
     if (!file.open(QIODevice::ReadOnly)) {
@@ -361,37 +360,43 @@ void Ai::translate()
     connect(translate_reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
 }
 
-void Ai::httpSearchReadyRead()
+void Ai::httpTranslateReadyRead()
 {    
     QString clearText{};
     QString strReply = search_reply->readAll().toStdString().c_str();
+    QJsonDocument jsonResponseDoc = QJsonDocument::fromJson(strReply.toUtf8());
 
-    auto jsonResponse = QJsonDocument::fromJson(strReply.toUtf8());
-    if(jsonResponse.isObject())
-    {        
-        QJsonObject obj = jsonResponse.object();       
+    if (!jsonResponseDoc.isNull() && jsonResponseDoc.isObject()) {
+       QJsonObject responseObject = jsonResponseDoc.object();
+       if (responseObject.contains("responseData") && responseObject["responseData"].isObject()) {
+            QJsonObject responseDataObject = responseObject["responseData"].toObject();
+            if (responseDataObject.contains("translatedText") && responseDataObject["translatedText"].isString()) {
+            QString translatedText = responseDataObject["translatedText"].toString();
+            qDebug() << "Translated Text: " << translatedText;
+            m_speech->say(translatedText);
+            }
+       }
     }
 }
 
-void Ai::searchText(QString text)
+void Ai::translateText(QString text, QString langpair)
 {
-//    QJsonDocument data {
-//        QJsonObject
-//            {
-//
-//            }
-//    };
+    QUrlQuery query;
+    query.addQueryItem("langpair", langpair);
+    query.addQueryItem("q", text);
+    query.addQueryItem("mt", "1");
+    query.addQueryItem("onlyprivate", "0");
+    query.addQueryItem("de", "a@b.c");
+    this->urlLanguageTranslate.setQuery(query);
 
-//    QNetworkRequest request(urlSearch);
-//    request.setHeader( QNetworkRequest::ContentTypeHeader, "application/json" );
-//    auto authorization = QString("Bearer %1").arg(ApiKey);
-//    request.setRawHeader(QByteArray("Authorization"), authorization.toUtf8());
+    QNetworkRequest request(this->urlLanguageTranslate);
+    request.setRawHeader("X-RapidAPI-Key", "413237f255msh65570d4eb42a8a7p1d9144jsnea8334feeacc");
+    request.setRawHeader("X-RapidAPI-Host", "translated-mymemory---translation-memory.p.rapidapi.com");
+    search_reply.reset(qnam->get(request));
 
-//    search_reply.reset(qnam->post(request, data.toJson(QJsonDocument::Compact)));
-
-//    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-//    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpSearchFinished);
-//    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpSearchReadyRead);
+    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpTranslateFinished);
+    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpTranslateReadyRead);
 }
 
 void Ai::inputDeviceChanged(int index)
@@ -425,7 +430,7 @@ void Ai::updateProgress(qint64 duration)
             this->m_audioRecorder->recorderState() == QMediaRecorder::RecorderState::RecordingState)
     {
         this->m_audioRecorder->stop();
-        translate();
+        speechVoice();
     }
     else
     {

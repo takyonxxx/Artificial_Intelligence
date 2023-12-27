@@ -46,8 +46,8 @@ public slots:
 
 private slots:
     void toggleRecord();
-    void translate();
-    void searchText(QString text);
+    void speechVoice();
+    void translateText(QString, QString);
 
     void localeChanged(const QLocale &locale);
     void voiceSelected(int index);
@@ -66,9 +66,9 @@ private slots:
 
     void sslErrors(const QList<QSslError> &errors);
     void httpSpeechFinished();
-    void httpSearchFinished();
+    void httpTranslateFinished();
     void httpSpeechReadyRead();
-    void httpSearchReadyRead();
+    void httpTranslateReadyRead();
 
     void on_exitButton_clicked();
     void on_clearButton_clicked();
@@ -113,6 +113,8 @@ private:
     QNetworkAccessManager *qnam;
     QUrl urlSpeech;
     QUrl urlSearch;
+    QUrl urlLanguageTranslate;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_language_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> search_reply;
 
