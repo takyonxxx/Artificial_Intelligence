@@ -25,7 +25,10 @@
 #include <QTextDocument>
 #include <QDir>
 #include <QUrl>
+
+#ifdef __APPLE__
 #include <AudioToolbox/AudioToolbox.h>
+#endif
 
 
 QT_BEGIN_NAMESPACE
@@ -65,8 +68,7 @@ public:
     }
 
 public slots:
-    void processBuffer(const QAudioBuffer&);
-    void recordBuffer(const QByteArray&);
+    void processBuffer(const QAudioBuffer&);    
     QList<qreal> getBufferLevels(const QAudioBuffer&);
 
 private slots:
@@ -102,22 +104,24 @@ private slots:
     void on_speechVolumeSlider_valueChanged(int value);
     void on_voxSensivitySlider_valueChanged(int value);
 private:
-    void clearAudioLevels();
-    void setSpeechEngine();
+#ifdef __APPLE__
     void startRecording();
     void stopRecording();
-
-    QMediaFormat selectedMediaFormat() const;
-
+    void recordBuffer(const QByteArray&);
     bool isBufferFull() const;
     void writeAudioToFile(const QByteArray&);
     AudioFileID audioFile;
     CFURLRef fileURL;
     QByteArray accumulatedBuffer;
+#endif
+    void clearAudioLevels();
+    void setSpeechEngine();
+    QMediaFormat selectedMediaFormat() const;
 
     QTextToSpeech *m_speech = nullptr;
     QVector<QVoice> m_voices;
     int m_current_language_index{0};
+    int m_current_voice_index{0};
 
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
@@ -137,7 +141,11 @@ private:
 
     const int maxDuration = 3000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed
+#ifdef _WIN32
+    const unsigned sampleRate = 16000;
+#else
     const unsigned sampleRate = 48000;
+#endif
     const unsigned channelCount = 1;
     int recordDuration = 0; // recording duration in miliseconds
 

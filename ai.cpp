@@ -53,12 +53,10 @@ Ai::Ai()
 
 #ifndef __APPLE__
     m_audioRecorder = new QMediaRecorder(this);
-    if (m_audioRecorder->recorderState() == QMediaRecorder::StoppedState)
-    {
-        connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
-        connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
-        connect(m_audioRecorder, &QMediaRecorder::errorOccurred, this, &Ai::displayErrorMessage);
-        connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
+    connect(m_audioRecorder, &QMediaRecorder::durationChanged, this, &Ai::updateProgress);
+    connect(m_audioRecorder, &QMediaRecorder::recorderStateChanged, this, &Ai::onStateChanged);
+    connect(m_audioRecorder, &QMediaRecorder::errorOccurred, this, &Ai::displayErrorMessage);
+    connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
 #endif
 
     m_audioOutput = new QAudioOutput(this);
@@ -108,8 +106,9 @@ Ai::~Ai()
     delete m_audioOutputSource;
 }
 
+
 void Ai::setOutputFile()
-{    
+{
     // Get the writable location for AppLocalData
     QString filePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QDir folderDir(filePath);
@@ -130,7 +129,7 @@ void Ai::setSpeechEngine()
 {
     m_speech->setPitch(0);
     connect(m_speech, &QTextToSpeech::localeChanged, this, &Ai::localeChanged);
-//    connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::onSpeechStateChanged);
+    //    connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::onSpeechStateChanged);
     connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
     ui->language->clear();
     // Populate the languages combobox before connecting its signal.
@@ -140,7 +139,7 @@ void Ai::setSpeechEngine()
     for (const QLocale &locale : locales) {
         QString name(QString("%1 (%2)")
                          .arg(QLocale::languageToString(locale.language()))
-                         .arg(QLocale::countryToString(locale.country())));
+                         .arg(QLocale::territoryToString(locale.territory())));
         QVariant localeVariant(locale);
         ui->language->addItem(name, localeVariant);
         if (name.contains("English (United States)"))
@@ -149,7 +148,7 @@ void Ai::setSpeechEngine()
             m_current_language_index = counter;
         }
         counter++;
-    }   
+    }
     ui->language->setCurrentIndex(m_current_language_index);
 }
 
@@ -157,6 +156,7 @@ void Ai::languageSelected(int language)
 {
     QLocale locale = ui->language->itemData(language).toLocale();
     m_speech->setLocale(locale);
+    localeChanged(locale);
 }
 
 void Ai::localeChanged(const QLocale &locale)
@@ -166,6 +166,7 @@ void Ai::localeChanged(const QLocale &locale)
 
     disconnect(ui->voice, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::voiceSelected);
     ui->voice->clear();
+    int counter=0;
 
     m_voices = m_speech->availableVoices();
     QVoice currentVoice = m_speech->voice();
@@ -173,10 +174,14 @@ void Ai::localeChanged(const QLocale &locale)
         ui->voice->addItem(QString("%1 - %2 - %3").arg(voice.name())
                                .arg(QVoice::genderName(voice.gender()))
                                .arg(QVoice::ageName(voice.age())));
-        if (voice.name() == currentVoice.name())
-            ui->voice->setCurrentIndex(ui->voice->count() - 1);
+        if (QVoice::genderName(voice.gender()).contains("Female"))
+        {
+            m_current_voice_index = counter;
+        }
+        counter++;
     }
     connect(ui->voice, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::voiceSelected);
+    ui->voice->setCurrentIndex(m_current_voice_index);
 }
 
 void Ai::voiceSelected(int index)
@@ -223,7 +228,7 @@ void Ai::httpTranslateFinished()
 }
 
 void Ai::httpSpeechReadyRead()
-{    
+{
     auto data = QJsonDocument::fromJson(translate_reply->readAll());
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
@@ -295,7 +300,7 @@ void Ai::speechVoice()
 }
 
 void Ai::httpTranslateReadyRead()
-{    
+{
     QString clearText{};
     QString strReply = search_reply->readAll().toStdString().c_str();
     QJsonDocument jsonResponseDoc = QJsonDocument::fromJson(strReply.toUtf8());
@@ -336,7 +341,7 @@ void Ai::translateText(QString text, QString langpair)
 
 void Ai::inputDeviceChanged(int index)
 {
-    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();    
+    const QAudioDevice &inputDevice = ui->audioInputDeviceBox->itemData(index).value<QAudioDevice>();
 
     qDeleteAll(m_audioLevels);
     m_audioLevels.clear();
@@ -368,7 +373,7 @@ void Ai::inputDeviceChanged(int index)
 
 void Ai::outputDeviceChanged(int index)
 {
-    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();    
+    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();
     m_audioOutput->setDevice(ouputDevice);
     appendText("Default speaker (" + ouputDevice.description() + ')');
 }
@@ -530,6 +535,28 @@ QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
     return max_values;
 }
 
+void Ai::micBufferReady()
+{
+    qint64 bytesAvailable = m_audioInputSource->bytesAvailable();
+    if (bytesAvailable <= 0) {
+        return;
+    }
+    auto buffer = ioInputDevice->read(bytesAvailable);
+    const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, audio_format);
+    processBuffer(audioBuffer);
+#ifdef __APPLE__
+    recordBuffer(buffer);
+#endif
+}
+
+void Ai::processBuffer(const QAudioBuffer& buffer)
+{
+    QList<qreal> levels = getBufferLevels(buffer);
+    for (int i = 0; i < levels.count(); ++i)
+        m_audioLevels.at(i)->setLevel(levels.at(i));
+}
+
+#ifdef __APPLE__
 void Ai::startRecording()
 {
     QString filePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/record.wav";
@@ -580,9 +607,10 @@ void Ai::startRecording()
     // Release the CFURLRef
     CFRelease(fileURL);
 }
-
+#endif
+#ifdef __APPLE__
 void Ai::stopRecording()
-{   
+{
     if (audioFile != nullptr) {
         if (fileURL != nullptr) {
             // Log file size after closing
@@ -593,10 +621,11 @@ void Ai::stopRecording()
         }
         AudioFileClose(audioFile);
         audioFile = nullptr;
-        speechVoice();        
+        speechVoice();
     }
 }
-
+#endif
+#ifdef __APPLE__
 void Ai::writeAudioToFile(const QByteArray& buffer)
 {
     // Write audio data to the file
@@ -627,8 +656,8 @@ void Ai::writeAudioToFile(const QByteArray& buffer)
         ui->statusbar->showMessage(tr(msg.toStdString().c_str()));
     }
 }
-
-
+#endif
+#ifdef __APPLE__
 bool Ai::isBufferFull() const
 {
     qint64 bufferSize = accumulatedBuffer.size() / (sizeof(short) * channelCount);
@@ -636,7 +665,8 @@ bool Ai::isBufferFull() const
     return durationMilliseconds >= this->recordDuration;
     //    return accumulatedBuffer.size() >= 1 * 1024 * 1024; // 1MB
 }
-
+#endif
+#ifdef __APPLE__
 void Ai::recordBuffer(const QByteArray& buffer)
 {
     if (m_recording)
@@ -666,28 +696,7 @@ void Ai::recordBuffer(const QByteArray& buffer)
         ui->recordButton->setText(tr("Record"));
     }
 }
-
-void Ai::micBufferReady()
-{
-    qint64 bytesAvailable = m_audioInputSource->bytesAvailable();
-    if (bytesAvailable <= 0) {
-        return;
-    }
-    auto buffer = ioInputDevice->read(bytesAvailable);
-    const QAudioBuffer &audioBuffer = QAudioBuffer(buffer, audio_format);
-    processBuffer(audioBuffer);
-#ifdef __APPLE__
-    recordBuffer(buffer);
 #endif
-}
-
-
-void Ai::processBuffer(const QAudioBuffer& buffer)
-{
-    QList<qreal> levels = getBufferLevels(buffer);
-    for (int i = 0; i < levels.count(); ++i)
-        m_audioLevels.at(i)->setLevel(levels.at(i));
-}
 
 void Ai::on_exitButton_clicked()
 {
