@@ -73,6 +73,7 @@ public slots:
 
 private slots:
     void toggleRecord();
+    void toggleLanguage();
     void speechVoice();
     void translateText(QString, QString);
 
@@ -103,6 +104,8 @@ private slots:
     void on_micVolumeSlider_valueChanged(int value);
     void on_speechVolumeSlider_valueChanged(int value);
     void on_voxSensivitySlider_valueChanged(int value);
+    void on_languageButton_clicked();
+
 private:
 #ifdef __APPLE__
     void startRecording();
@@ -122,6 +125,8 @@ private:
     QVector<QVoice> m_voices;
     int m_current_language_index{0};
     int m_current_voice_index{0};
+    QString langpair;
+    QString languageCode;
 
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;

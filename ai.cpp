@@ -37,16 +37,17 @@ Ai::Ai()
     this->setFixedSize(targetWidth, targetHeight);
 #endif
 
-    ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
-    ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
-    ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#154360; padding: 12px; spacing: 12px;");
-    ui->textTerminal->setStyleSheet("font: 12pt; color: #00cccc; background-color: #001a1a;");
-    ui->labelOutputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
-    ui->audioOutputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
-    ui->labelInputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
-    ui->audioInputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
-    ui->labelRecordTime->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 5px; spacing: 5px;");
-    ui->recordTimeBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:orange; padding: 4px; spacing: 4px;");
+    ui->recordButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#900C3F; padding: 6px; spacing: 6px;");
+    ui->languageButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#900C3F; padding: 6px; spacing: 6px;");
+    ui->clearButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#045F0A; padding: 6px; spacing: 6px;");
+    ui->exitButton->setStyleSheet("font-size: 16pt; font-weight: bold; color: white;background-color:#045F0A; padding: 6px; spacing: 6px;");
+    ui->textTerminal->setStyleSheet("font: 13pt; color: #00cccc; background-color: #001a1a;");
+    ui->labelOutputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
+    ui->audioOutputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#6B0785; padding: 6px; spacing: 6px;");
+    ui->labelInputDevice->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
+    ui->audioInputDeviceBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#6B0785; padding: 6px; spacing: 6px;");
+    ui->labelRecordTime->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: v;");
+    ui->recordTimeBox->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#6B0785; padding: 6px; spacing: 6px;");
     ui->labelMicLevelInfo->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
     ui->labelSpeechLevelInfo->setStyleSheet("font-size: 14pt; font-weight: bold; color: white;background-color:#154360; padding: 6px; spacing: 6px;");
     appendText(tr("Device supports OpenSSL: %1").arg((QSslSocket::supportsSsl()) ? "Yes" : "No"));
@@ -62,6 +63,9 @@ Ai::Ai()
     m_audioOutput = new QAudioOutput(this);
     m_audioInput = new QAudioInput(this);
     m_speech = new QTextToSpeech(this);
+    langpair = "tr|en";
+    languageCode = "TR";
+
 
     //audio devices    
     for (auto device: QMediaDevices::audioInputs()) {
@@ -78,9 +82,9 @@ Ai::Ai()
 
     //record times
     ui->recordTimeBox->addItem(QStringLiteral("1000"), QVariant(1000));
-    ui->recordTimeBox->addItem(QStringLiteral("2000"), QVariant(2000));
     ui->recordTimeBox->addItem(QStringLiteral("3000"), QVariant(3000));
-    ui->recordTimeBox->setCurrentIndex(2);
+    ui->recordTimeBox->addItem(QStringLiteral("5000"), QVariant(5000));
+    ui->recordTimeBox->setCurrentIndex(1);
 
     //http request
     qnam = new QNetworkAccessManager(this);
@@ -142,7 +146,12 @@ void Ai::setSpeechEngine()
                          .arg(QLocale::territoryToString(locale.territory())));
         QVariant localeVariant(locale);
         ui->language->addItem(name, localeVariant);
-        if (name.contains("English (United States)"))
+        if (langpair == "tr|en" && name.contains("English (United States)"))
+        {
+            current = locale;
+            m_current_language_index = counter;
+        }
+        else if (langpair == "en|tr" && name.contains("Turkish"))
         {
             current = locale;
             m_current_language_index = counter;
@@ -240,7 +249,7 @@ void Ai::httpSpeechReadyRead()
         auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
         if (command.size() > 0){
 
-            translateText(command, "tr|en");
+            translateText(command, langpair);
         }
         else
         {
@@ -274,7 +283,7 @@ void Ai::speechVoice()
 
     QJsonObject config {
         {"encoding", "LINEAR16"},
-        {"languageCode", "TR"},
+        {"languageCode", languageCode},
         {"model", "command_and_search"},
         {"enableAutomaticPunctuation", true},
         {"audioChannelCount", QJsonValue::fromVariant(channelCount)},
@@ -331,8 +340,8 @@ void Ai::translateText(QString text, QString langpair)
     this->urlLanguageTranslate.setQuery(query);
 
     QNetworkRequest request(this->urlLanguageTranslate);
-    request.setRawHeader("X-RapidAPI-Key", "413237f255msh65570d4eb42a8a7p1d9144jsnea8334feeacc");
-    request.setRawHeader("X-RapidAPI-Host", "translated-mymemory---translation-memory.p.rapidapi.com");
+    request.setRawHeader("X-RapidAPI-Host", translateBaseApi.toStdString().c_str());
+    request.setRawHeader("X-RapidAPI-Key", translateApiKey.toStdString().c_str());
     search_reply.reset(qnam->get(request));
 
     connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
@@ -483,6 +492,23 @@ void Ai::toggleRecord()
 #endif
         m_recording = false;
     }
+}
+
+void Ai::toggleLanguage()
+{
+    if(langpair == "tr|en")
+    {
+        langpair = "en|tr";
+        languageCode = "EN";
+        ui->languageButton->setText("en|tr");
+    }
+    else
+    {
+        langpair = "tr|en";
+        languageCode = "TR";
+        ui->languageButton->setText("tr|en");
+    }
+    setSpeechEngine();
 }
 
 void Ai::displayErrorMessage()
@@ -743,3 +769,9 @@ void Ai::on_voxSensivitySlider_valueChanged(int value)
     m_vox_sensitivity = linearVox;
     ui->labelVoxSensivityInfo->setText(QString::number(linearVox, 'f', 2));
 }
+
+void Ai::on_languageButton_clicked()
+{
+    toggleLanguage();
+}
+
