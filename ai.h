@@ -141,7 +141,7 @@ private:
 
     const int maxDuration = 3000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__linux__)
     const unsigned sampleRate = 16000;
 #else
     const unsigned sampleRate = 48000;

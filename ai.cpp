@@ -170,11 +170,12 @@ void Ai::localeChanged(const QLocale &locale)
 
     m_voices = m_speech->availableVoices();
     QVoice currentVoice = m_speech->voice();
-    for (const QVoice &voice : qAsConst(m_voices)) {
+    for (const QVoice &voice : std::as_const(m_voices)) {
+
         ui->voice->addItem(QString("%1 - %2 - %3").arg(voice.name())
                                .arg(QVoice::genderName(voice.gender()))
                                .arg(QVoice::ageName(voice.age())));
-        if (QVoice::genderName(voice.gender()).contains("Female"))
+        if (QVoice::genderName(voice.gender()).contains("Female") || voice.name().contains("female"))
         {
             m_current_voice_index = counter;
         }
