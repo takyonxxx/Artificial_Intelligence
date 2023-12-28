@@ -25,7 +25,9 @@ FORMS += \
 macx{
     message("macx enabled")
     RC_ICONS = $$PWD/icons/ai.ico
-#    INCLUDEPATH += $$HOME/Qt/6.5.2/macos/include/
+#    INCLUDEPATH += /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/AudioToolbox.framework/Headers
+    LIBS += -framework AudioToolbox
+
 #    QMAKE_INFO_PLIST = $$PWD/Info.plist.in
 }
 
@@ -33,7 +35,9 @@ ios {
     message("ios enabled")
     QMAKE_INFO_PLIST = ios/Info.plist
     QMAKE_ASSET_CATALOGS = $$PWD/ios/Assets.xcassets
-    QMAKE_ASSET_CATALOGS_APP_ICON = "AppIcon"
+    QMAKE_ASSET_CATALOGS_APP_ICON = "AppIcon"    
+    LIBS += -framework AVFoundation
+    LIBS += -framework AudioToolbox
 }
 
 win32{
