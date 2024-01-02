@@ -90,8 +90,8 @@ Ai::Ai()
     qnam = new QNetworkAccessManager(this);
 
     this->urlSpeech.setUrl(speechBaseApi);
-    this->urlSpeech.setQuery("key=" + speechApiKey);
-    this->urlLanguageTranslate.setUrl("https://translated-mymemory---translation-memory.p.rapidapi.com/get");    
+    this->urlLanguageTranslate.setUrl(translateUrl);
+    this->urlAi.setUrl(aiUrl);
 
     setSpeechEngine();
     inputDeviceChanged(0);
@@ -211,13 +211,24 @@ void Ai::sslErrors(const QList<QSslError> &errors)
     if (QMessageBox::warning(this, tr("SSL Errors"),
                              tr("One or more SSL errors has occurred:\n%1").arg(errorString),
                              QMessageBox::Ignore | QMessageBox::Abort) == QMessageBox::Ignore) {
-        translate_reply->ignoreSslErrors();
-        search_reply->ignoreSslErrors();
+        ai_reply->ignoreSslErrors();  // Use ai_reply here
     }
+
     qDebug() << "sslErrors";
 }
 
+
 void Ai::httpSpeechFinished()
+{
+    if(speech_reply->error() != QNetworkReply::NoError)
+    {
+        const QString &errorString = speech_reply->errorString();
+        appendText(errorString);
+    }
+    speech_reply.reset();
+}
+
+void Ai::httpTranslateFinished()
 {
     if(translate_reply->error() != QNetworkReply::NoError)
     {
@@ -227,19 +238,19 @@ void Ai::httpSpeechFinished()
     translate_reply.reset();
 }
 
-void Ai::httpTranslateFinished()
+void Ai::httpAiFinished()
 {
-    if(search_reply->error() != QNetworkReply::NoError)
+    if(ai_reply->error() != QNetworkReply::NoError)
     {
-        const QString &errorString = search_reply->errorString();
+        const QString &errorString = ai_reply->errorString();
         appendText(errorString);
     }
-    search_reply.reset();
+    ai_reply.reset();
 }
 
 void Ai::httpSpeechReadyRead()
 {
-    auto data = QJsonDocument::fromJson(translate_reply->readAll());
+    auto data = QJsonDocument::fromJson(speech_reply->readAll());
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
     qDebug() << strFromJson;
@@ -251,8 +262,7 @@ void Ai::httpSpeechReadyRead()
 
             translateText(command, langpair);
             // Agent responds
-            auto gpt3Result = gpt3Client.getAnswerFromChatGpt(command);
-            qDebug() << "Gpt3: " << gpt3Result;
+            getFromAi(command);
         }
         else
         {
@@ -305,17 +315,18 @@ void Ai::speechVoice()
         }
     };
 
-    translate_reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
-
-    connect(translate_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-    connect(translate_reply.get(), &QNetworkReply::finished, this, &Ai::httpSpeechFinished);
-    connect(translate_reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
+    this->urlSpeech.setQuery("key=" + speechApiKey);
+    speech_reply.reset(qnam->post(QNetworkRequest(urlSpeech), data.toJson(QJsonDocument::Compact)));
+    
+    connect(speech_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(speech_reply.get(), &QNetworkReply::finished, this, &Ai::httpSpeechFinished);
+    connect(speech_reply.get(), &QIODevice::readyRead, this, &Ai::httpSpeechReadyRead);
 }
 
 void Ai::httpTranslateReadyRead()
 {
     QString clearText{};
-    QString strReply = search_reply->readAll().toStdString().c_str();
+    QString strReply = translate_reply->readAll().toStdString().c_str();
     QJsonDocument jsonResponseDoc = QJsonDocument::fromJson(strReply.toUtf8());
 
     if (!jsonResponseDoc.isNull() && jsonResponseDoc.isObject()) {
@@ -332,6 +343,15 @@ void Ai::httpTranslateReadyRead()
     }
 }
 
+void Ai::httpAiReadyRead()
+{
+    qDebug() << "okkkkkkkkkkk";
+    auto data = QJsonDocument::fromJson(ai_reply->readAll());
+
+    QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
+    qDebug() << strFromJson;
+}
+
 void Ai::translateText(QString text, QString langpair)
 {
     QUrlQuery query;
@@ -343,13 +363,35 @@ void Ai::translateText(QString text, QString langpair)
     this->urlLanguageTranslate.setQuery(query);
 
     QNetworkRequest request(this->urlLanguageTranslate);
-    request.setRawHeader("X-RapidAPI-Host", translateBaseApi.toStdString().c_str());
+    request.setRawHeader("Authorization", "q9Oh7Lg7J0Hd");
+    request.setRawHeader("X-RapidAPI-Host", translateHost.toStdString().c_str());
     request.setRawHeader("X-RapidAPI-Key", translateApiKey.toStdString().c_str());
-    search_reply.reset(qnam->get(request));
+    translate_reply.reset(qnam->get(request));
+    
+    connect(translate_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(translate_reply.get(), &QNetworkReply::finished, this, &Ai::httpTranslateFinished);
+    connect(translate_reply.get(), &QIODevice::readyRead, this, &Ai::httpTranslateReadyRead);
+}
 
-    connect(search_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
-    connect(search_reply.get(), &QNetworkReply::finished, this, &Ai::httpTranslateFinished);
-    connect(search_reply.get(), &QIODevice::readyRead, this, &Ai::httpTranslateReadyRead);
+void Ai::getFromAi(QString text)
+{
+    QUrlQuery query;
+    query.addQueryItem("message", text);
+    query.addQueryItem("user_id", "420");
+    this->urlAi.setQuery(query);
+
+    // Set up the request headers
+    QNetworkRequest request(this->urlAi);
+    request.setRawHeader("Authorization", "q9Oh7Lg7J0Hd");
+    request.setRawHeader("X-Rapidapi-Host", aiHost.toStdString().c_str());
+    request.setRawHeader("X-Rapidapi-Key", aiApiKey.toStdString().c_str());
+
+    ai_reply.reset(qnam->get(request));
+    qDebug() << this->urlAi;
+
+    connect(ai_reply.get(), &QNetworkReply::sslErrors, this, &Ai::sslErrors);
+    connect(ai_reply.get(), &QNetworkReply::finished, this, &Ai::httpAiFinished);
+    connect(ai_reply.get(), &QIODevice::readyRead, this, &Ai::httpAiReadyRead);
 }
 
 void Ai::inputDeviceChanged(int index)

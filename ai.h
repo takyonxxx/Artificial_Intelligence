@@ -25,7 +25,6 @@
 #include <QTextDocument>
 #include <QDir>
 #include <QUrl>
-#include "GPT3Client.h"
 
 #ifdef __APPLE__
 #include <AudioToolbox/AudioToolbox.h>
@@ -77,6 +76,7 @@ private slots:
     void toggleLanguage();
     void speechVoice();
     void translateText(QString, QString);
+    void getFromAi(QString);
 
     void localeChanged(const QLocale &locale);
     void voiceSelected(int index);
@@ -95,8 +95,10 @@ private slots:
     void sslErrors(const QList<QSslError> &errors);
     void httpSpeechFinished();
     void httpTranslateFinished();
+    void httpAiFinished();
     void httpSpeechReadyRead();
     void httpTranslateReadyRead();
+    void httpAiReadyRead();
 
     void on_exitButton_clicked();
     void on_clearButton_clicked();
@@ -128,7 +130,6 @@ private:
     int m_current_voice_index{0};
     QString langpair;
     QString languageCode;
-    GPT3Client gpt3Client;
 
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
@@ -142,11 +143,11 @@ private:
     QAudioFormat audio_format;
 
     bool m_recording = false;
-    bool m_record_started = false;
-    float m_vox_sensitivity = 0.3;
+    bool m_record_started = false;   
     bool m_outputLocationSet = false;
     bool m_qlearning = false;
     bool m_translate = false;
+    float m_vox_sensitivity = 0.3;
 
     const int maxDuration = 3000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed
@@ -162,9 +163,10 @@ private:
     QUrl urlSpeech;
     QUrl urlSearch;
     QUrl urlLanguageTranslate;
-    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_language_reply;
+    QUrl urlAi;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> speech_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
-    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> search_reply;
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> ai_reply;
 
     const QString fileName = "record";
     QString ext = "";
