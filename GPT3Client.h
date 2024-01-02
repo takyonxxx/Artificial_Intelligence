@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDebug>
+#include "constants.h"
 
 class GPT3Client : public QObject {
     Q_OBJECT
@@ -16,11 +17,9 @@ public:
     GPT3Client(QObject* parent = nullptr) : QObject(parent) {}
 
     QStringList getWordsFromChatGptNodel(QString prompt) {
-        QString apiKey = "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";
-
-        // Make a request to the OpenAI GPT-3 API
+        QString apiKey = gpt3ApiKey;
         QUrl apiUrl;
-        apiUrl.setUrl("https://api.openai.com/v1/engines/davinci/completions");
+        apiUrl.setUrl(gpt3BaseApi);
         QNetworkRequest request(apiUrl);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         request.setRawHeader("Authorization", "Bearer " + apiKey.toUtf8());
@@ -63,10 +62,9 @@ public:
     }
 
     QString getAnswerFromChatGpt(QString prompt) {
-        QString apiKey = "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";
-
-        // Make a request to the OpenAI GPT-3 API
-        QUrl apiUrl("https://api.openai.com/v1/engines/davinci/completions");
+        QString apiKey = gpt3ApiKey;
+        QUrl apiUrl;
+        apiUrl.setUrl(gpt3BaseApi);
         QNetworkRequest request(apiUrl);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         request.setRawHeader("Authorization", "Bearer " + apiKey.toUtf8());
@@ -88,6 +86,7 @@ public:
 
         // Check if the request was successful
         if (reply->error() == QNetworkReply::NoError) {
+            // Read the response data regardless of the error status
             QByteArray responseData = reply->readAll();
             QJsonDocument responseDoc = QJsonDocument::fromJson(responseData);
 
@@ -109,12 +108,12 @@ public:
                 return "Invalid JSON response";
             }
         } else {
+            // Error occurred, handle it using the stored response data
             QString errorMessage = reply->errorString();
             qDebug() << errorMessage;
             return errorMessage;
         }
     }
-
 };
 
 #endif // GPT3CLIENT_H
