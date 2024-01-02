@@ -166,7 +166,7 @@ private:
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> speech_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> ai_reply;
-    TranslateClient *translateClient;
+//    TranslateClient *translateClient;
 
     const QString fileName = "record";
     QString ext = "";

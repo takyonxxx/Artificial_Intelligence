@@ -88,7 +88,7 @@ Ai::Ai()
 
     //http request
     qnam = new QNetworkAccessManager(this);
-    translateClient = new TranslateClient(this);
+//    translateClient = new TranslateClient(this);
 
     this->urlSpeech.setUrl(speechBaseApi);
     this->urlLanguageTranslate.setUrl(translateUrl);
@@ -109,7 +109,6 @@ Ai::~Ai()
     delete m_audioRecorder;
     delete m_audioInputSource;
     delete m_audioOutputSource;
-    delete translateClient;
     delete qnam;
 }
 
