@@ -12,7 +12,8 @@ HEADERS = \
     ai.h \
     audiolevel.h \
     constants.h \
-    gpt3client.h
+    gpt3client.h \
+    translateclient.h
 
 SOURCES = \
     ai.cpp \

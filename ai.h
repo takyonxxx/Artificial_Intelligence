@@ -23,9 +23,8 @@
 #include <QJsonObject>
 #include <QTextToSpeech>
 #include <QTextDocument>
-#include <QDir>
 #include <QUrl>
-
+#include "translateclient.h"
 #ifdef __APPLE__
 #include <AudioToolbox/AudioToolbox.h>
 #endif
@@ -167,6 +166,7 @@ private:
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> speech_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> translate_reply;
     QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> ai_reply;
+    TranslateClient *translateClient;
 
     const QString fileName = "record";
     QString ext = "";
