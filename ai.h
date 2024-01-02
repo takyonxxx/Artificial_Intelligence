@@ -25,6 +25,7 @@
 #include <QTextDocument>
 #include <QDir>
 #include <QUrl>
+#include "GPT3Client.h"
 
 #ifdef __APPLE__
 #include <AudioToolbox/AudioToolbox.h>
@@ -127,6 +128,7 @@ private:
     int m_current_voice_index{0};
     QString langpair;
     QString languageCode;
+    GPT3Client gpt3Client;
 
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
@@ -143,6 +145,8 @@ private:
     bool m_record_started = false;
     float m_vox_sensitivity = 0.3;
     bool m_outputLocationSet = false;
+    bool m_qlearning = false;
+    bool m_translate = false;
 
     const int maxDuration = 3000; // maximum recording duration allowed
     const int minDuration = 1000; // minimium recording duration allowed

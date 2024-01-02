@@ -250,6 +250,9 @@ void Ai::httpSpeechReadyRead()
         if (command.size() > 0){
 
             translateText(command, langpair);
+            // Agent responds
+            auto gpt3Result = gpt3Client.getAnswerFromChatGpt(command);
+            qDebug() << "Gpt3: " << gpt3Result;
         }
         else
         {

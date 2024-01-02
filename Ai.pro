@@ -9,6 +9,7 @@ CONFIG += c++14
 win32:INCLUDEPATH += $$PWD
 
 HEADERS = \
+    GPT3Client.h \
     ai.h \
     audiolevel.h \
     constants.h
