@@ -142,6 +142,7 @@ private:
     QAudioFormat audio_format;
 
     bool m_recording = false;
+    bool m_speaking = false;
     bool m_record_started = false;   
     bool m_outputLocationSet = false;
     bool m_qlearning = false;

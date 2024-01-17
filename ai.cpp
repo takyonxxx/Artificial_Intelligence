@@ -97,7 +97,7 @@ Ai::Ai()
     setSpeechEngine();
     inputDeviceChanged(0);
     outputDeviceChanged(0);
-    m_speech->say("Please press the record button.");
+//    m_speech->say("Please press the record button.");
 }
 
 Ai::~Ai()
@@ -134,7 +134,7 @@ void Ai::setSpeechEngine()
 {
     m_speech->setPitch(0);
     connect(m_speech, &QTextToSpeech::localeChanged, this, &Ai::localeChanged);
-    //    connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::onSpeechStateChanged);
+    connect(m_speech, &QTextToSpeech::stateChanged, this, &Ai::onSpeechStateChanged);
     connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &Ai::languageSelected);
     ui->language->clear();
     // Populate the languages combobox before connecting its signal.
@@ -482,9 +482,10 @@ void Ai::onSpeechStateChanged(QTextToSpeech::State state)
 
     if (state == QTextToSpeech::Speaking) {
         statusMessage = tr("Speech started...");
+        m_speaking = true;
     } else if (state == QTextToSpeech::Ready)
     {
-        m_recording = false;
+        m_speaking = false;
         statusMessage = tr("Speech stopped...");
     }
     else if (state == QTextToSpeech::Paused)
@@ -513,6 +514,7 @@ void Ai::toggleRecord()
 {
     if(!m_recording)
     {
+        m_recording = true;
 #ifndef __APPLE__
         if (m_audioRecorder->recorderState() == QMediaRecorder::StoppedState)
         {
@@ -527,8 +529,7 @@ void Ai::toggleRecord()
             m_audioRecorder->record();
         }
 #endif
-        this->recordDuration = boxValue(ui->recordTimeBox).toInt();
-        m_recording = true;
+        this->recordDuration = boxValue(ui->recordTimeBox).toInt();       
     }
     else
     {
@@ -589,14 +590,14 @@ QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
     for (int i = 0; i < buffer.frameCount(); ++i) {
         for (int j = 0; j < channels; ++j) {
             qreal value = qAbs(format.normalizedSampleValue(data));
-            //            if (value >= m_vox_sensitivity)
-            //            {
-            //                if (!m_recording)
-            //                {
-            //                    qDebug() << value;
-            //                    toggleRecord();
-            //                }
-            //            }
+            if (value >= m_vox_sensitivity)
+            {
+                if (!m_recording && !m_speaking)
+                {
+                    qDebug() << value;
+                    toggleRecord();
+                }
+            }
 
             if (value > max_values.at(j))
                 max_values[j] = value;
