@@ -27,10 +27,8 @@ FORMS += \
 macx{
     message("macx enabled")
     RC_ICONS = $$PWD/icons/ai.ico
-#    INCLUDEPATH += /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/AudioToolbox.framework/Headers
+    QMAKE_INFO_PLIST = $$PWD/Info.plist.in
     LIBS += -framework AudioToolbox
-
-#    QMAKE_INFO_PLIST = $$PWD/Info.plist.in
 }
 
 ios {

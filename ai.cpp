@@ -60,14 +60,29 @@ Ai::Ai()
     connect(m_audioRecorder, &QMediaRecorder::errorChanged, this, &Ai::displayErrorMessage);
 #endif
 
-    m_audioOutput = new QAudioOutput(this);
+    QAudioDevice outputDevice;
+
+    for (auto &device: QMediaDevices::audioOutputs()) {
+        outputDevice = device;
+        break;
+    }
+
+    m_format.setSampleFormat(QAudioFormat::Int16);
+    m_format.setSampleRate(sampleRate);
+    m_format.setChannelCount(channelCount);
+
+    if (outputDevice.isFormatSupported(m_format)) {
+        m_audioOutput = new QAudioSink(outputDevice, m_format, this);
+        connect(m_audioOutput,&QAudioSink::stateChanged, this, &Ai::handleAudioStateChanged);
+    }
+
     m_audioInput = new QAudioInput(this);
     m_speech = new QTextToSpeech(this);
     langpair = "tr|en";
     languageCode = "TR";
 
 
-    //audio devices    
+    //audio devices
     for (auto device: QMediaDevices::audioInputs()) {
         auto name = device.description();
         ui->audioInputDeviceBox->addItem(name, QVariant::fromValue(device));
@@ -108,8 +123,30 @@ Ai::~Ai()
     delete ioOutputDevice;
     delete m_audioRecorder;
     delete m_audioInputSource;
-    delete m_audioOutputSource;
     delete qnam;
+}
+
+
+void Ai::handleAudioStateChanged(QAudio::State newState)
+{
+    qDebug() << newState;
+
+    switch (newState) {
+    case QAudio::IdleState:
+        m_audioOutput->stop();
+        break;
+
+    case QAudio::StoppedState:
+        // Stopped for other reasons
+        if (m_audioOutput->error() != QAudio::NoError) {
+            // Error handling
+        }
+        break;
+
+    default:
+        // ... other cases as appropriate
+        break;
+    }
 }
 
 void Ai::setOutputFile()
@@ -428,9 +465,16 @@ void Ai::inputDeviceChanged(int index)
 
 void Ai::outputDeviceChanged(int index)
 {
-    const QAudioDevice &ouputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();
-    m_audioOutput->setDevice(ouputDevice);
-    appendText("Default speaker (" + ouputDevice.description() + ')');
+    if(m_audioOutput)
+    {
+        disconnect(m_audioOutput,&QAudioSink::stateChanged, this, &Ai::handleAudioStateChanged);
+        const QAudioDevice &outputDevice = ui->audioOutputDeviceBox->itemData(index).value<QAudioDevice>();
+        if (outputDevice.isFormatSupported(m_format)) {
+            m_audioOutput = new QAudioSink(outputDevice, m_format, this);
+            connect(m_audioOutput,&QAudioSink::stateChanged, this, &Ai::handleAudioStateChanged);
+        }
+        appendText("Default speaker (" + outputDevice.description() + ')');
+    }
 }
 
 void Ai::updateProgress(qint64 duration)

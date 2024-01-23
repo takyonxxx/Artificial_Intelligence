@@ -6,8 +6,8 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
-    Ai recorder;
-    recorder.show();
+    Ai ai;
+    ai.show();
 
     return app.exec();
 }

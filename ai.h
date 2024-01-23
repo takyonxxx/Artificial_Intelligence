@@ -98,6 +98,7 @@ private slots:
     void httpSpeechReadyRead();
     void httpTranslateReadyRead();
     void httpAiReadyRead();
+    void handleAudioStateChanged(QAudio::State);
 
     void on_exitButton_clicked();
     void on_clearButton_clicked();
@@ -133,8 +134,8 @@ private:
     QMediaCaptureSession m_captureSession;    
     QMediaRecorder *m_audioRecorder = nullptr;
     QAudioSource *m_audioInputSource = nullptr;
-    QAudioSource *m_audioOutputSource = nullptr;
-    QAudioOutput *m_audioOutput = nullptr;
+    QAudioSink *m_audioOutput;
+    QAudioFormat m_format;
     QAudioInput* m_audioInput = nullptr;
     QIODevice *ioInputDevice = nullptr;
     QIODevice *ioOutputDevice = nullptr;
