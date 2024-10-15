@@ -292,6 +292,7 @@ void Ai::httpSpeechReadyRead()
 
     QString strFromJson = QJsonDocument(data).toJson(QJsonDocument::Compact).toStdString().c_str();
     qDebug() << strFromJson;
+    m_recording = false;
     auto error = data["error"]["message"];
 
     if (error.isUndefined()) {
@@ -374,7 +375,7 @@ void Ai::httpTranslateReadyRead()
                 QString translatedText = responseDataObject["translatedText"].toString();
                 qDebug() << "Translated Text: " << translatedText;
                 appendText(translatedText);
-                m_speech->say(translatedText);
+                m_speech->say(translatedText);                
             }
         }
     }
@@ -573,7 +574,7 @@ void Ai::toggleRecord()
             m_audioRecorder->record();
         }
 #endif
-        this->recordDuration = boxValue(ui->recordTimeBox).toInt();       
+        this->recordDuration = boxValue(ui->recordTimeBox).toInt();
     }
     else
     {
@@ -614,41 +615,35 @@ void Ai::clearAudioLevels()
         m_audioLevel->setLevel(0);
 }
 
-// returns the audio level for each channel
 QList<qreal> Ai::getBufferLevels(const QAudioBuffer &buffer)
 {
     QList<qreal> values;
-
     auto format = buffer.format();
     if (!format.isValid())
         return values;
-
     int channels = buffer.format().channelCount();
     values.fill(0, channels);
-
     int bytesPerSample = format.bytesPerSample();
     QList<qreal> max_values;
     max_values.fill(0, channels);
-
     const char *data = buffer.constData<char>();
     for (int i = 0; i < buffer.frameCount(); ++i) {
         for (int j = 0; j < channels; ++j) {
             qreal value = qAbs(format.normalizedSampleValue(data));
-            if (value >= m_vox_sensitivity)
+            qreal amplifiedValue = value * 10;
+            if (amplifiedValue >= m_vox_sensitivity)
             {
                 if (!m_recording && !m_speaking)
                 {
-                    qDebug() << value;
+                    qDebug() << amplifiedValue << m_recording;
                     toggleRecord();
                 }
             }
-
             if (value > max_values.at(j))
                 max_values[j] = value;
             data += bytesPerSample;
         }
     }
-
     return max_values;
 }
 
