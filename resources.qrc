@@ -28,5 +28,20 @@
         <file>ios/Assets.xcassets/AppIcon.appiconset/87.png</file>
         <file>ios/Assets.xcassets/AppIcon.appiconset/Contents.json</file>
         <file>ios/Info.plist</file>
+        <file>android/gradle/wrapper/gradle-wrapper.jar</file>
+        <file>android/gradle/wrapper/gradle-wrapper.properties</file>
+        <file>android/res/drawable-hdpi/icon.png</file>
+        <file>android/res/drawable-ldpi/icon.png</file>
+        <file>android/res/drawable-mdpi/icon.png</file>
+        <file>android/res/drawable-xhdpi/icon.png</file>
+        <file>android/res/drawable-xxhdpi/icon.png</file>
+        <file>android/res/drawable-xxxhdpi/icon.png</file>
+        <file>android/res/values/libs.xml</file>
+        <file>android/res/xml/qtprovider_paths.xml</file>
+        <file>android/AndroidManifest.xml</file>
+        <file>android/build.gradle</file>
+        <file>android/gradle.properties</file>
+        <file>android/gradlew</file>
+        <file>android/gradlew.bat</file>
     </qresource>
 </RCC>

@@ -99,6 +99,8 @@ private slots:
     void httpTranslateReadyRead();
     void httpAiReadyRead();
     void handleAudioStateChanged(QAudio::State);
+    void requestMicrophonePermission();
+    void initializeAi();
 
     void on_exitButton_clicked();
     void on_clearButton_clicked();

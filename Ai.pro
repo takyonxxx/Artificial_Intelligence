@@ -4,7 +4,12 @@ QT += core gui multimedia network texttospeech
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Ai
-CONFIG += c++14
+CONFIG += c++17
+
+android{
+    message("android enabled")
+    QT += core-private
+}
 
 win32:INCLUDEPATH += $$PWD
 
@@ -48,9 +53,6 @@ unix!mac{
     message("linux enabled")
 }
 
-android{
-    message("android enabled")
-}
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -65,3 +67,8 @@ include(./shared/shared.pri)
 
 #ffmpeg -list_devices true -f dshow -i null
 #ffmpeg -f dshow -t 30 -i "audio=Microphone (2- USB PnP Audio Device(EEPROM))" record.flac
+
+contains(ANDROID_TARGET_ARCH,armeabi-v7a) {
+    ANDROID_PACKAGE_SOURCE_DIR = \
+        $$PWD/android
+}

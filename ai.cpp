@@ -13,6 +13,12 @@
 #include <QMimeType>
 #include "constants.h"
 
+#include <QCoreApplication>
+#include <QJniObject>
+#include <QtCore/private/qandroidextras_p.h>
+#include <QFuture>
+#include <QFutureWatcher>
+
 static QList<qreal> getBufferLevels(const QAudioBuffer &buffer);
 
 static QVariant boxValue(const QComboBox *box)
@@ -26,6 +32,26 @@ static QVariant boxValue(const QComboBox *box)
 
 Ai::Ai()
     : ui(new Ui::Ai)
+{
+#ifdef Q_OS_ANROID
+    requestMicrophonePermission();
+#else
+    initializeAi();
+#endif
+}
+
+Ai::~Ai()
+{
+    delete m_speech;
+    delete m_audioOutput;
+    delete ioInputDevice;
+    delete ioOutputDevice;
+    delete m_audioRecorder;
+    delete m_audioInputSource;
+    delete qnam;
+}
+
+void Ai::initializeAi()
 {
     ui->setupUi(this);
 
@@ -103,7 +129,7 @@ Ai::Ai()
 
     //http request
     qnam = new QNetworkAccessManager(this);
-//    translateClient = new TranslateClient(this);
+    //    translateClient = new TranslateClient(this);
 
     this->urlSpeech.setUrl(speechBaseApi);
     this->urlLanguageTranslate.setUrl(translateUrl);
@@ -112,20 +138,50 @@ Ai::Ai()
     setSpeechEngine();
     inputDeviceChanged(0);
     outputDeviceChanged(0);
-//    m_speech->say("Please press the record button.");
+    //    m_speech->say("Please press the record button.");
 }
 
-Ai::~Ai()
+void Ai::requestMicrophonePermission()
 {
-    delete m_speech;
-    delete m_audioOutput;
-    delete ioInputDevice;
-    delete ioOutputDevice;
-    delete m_audioRecorder;
-    delete m_audioInputSource;
-    delete qnam;
-}
+    if (QNativeInterface::QAndroidApplication::sdkVersion() >= 23) {
+        QFuture<QtAndroidPrivate::PermissionResult> checkFuture = QtAndroidPrivate::checkPermission(QString("android.permission.RECORD_AUDIO"));
 
+        QFutureWatcher<QtAndroidPrivate::PermissionResult>* checkWatcher = new QFutureWatcher<QtAndroidPrivate::PermissionResult>(this);
+
+        connect(checkWatcher, &QFutureWatcher<QtAndroidPrivate::PermissionResult>::finished, this, [this, checkWatcher]() {
+            QtAndroidPrivate::PermissionResult checkResult = checkWatcher->result();
+            if (checkResult == QtAndroidPrivate::PermissionResult::Denied) {
+                QFuture<QtAndroidPrivate::PermissionResult> requestFuture = QtAndroidPrivate::requestPermission(QString("android.permission.RECORD_AUDIO"));
+
+                QFutureWatcher<QtAndroidPrivate::PermissionResult>* requestWatcher = new QFutureWatcher<QtAndroidPrivate::PermissionResult>(this);
+
+                connect(requestWatcher, &QFutureWatcher<QtAndroidPrivate::PermissionResult>::finished, this, [this, requestWatcher]() {
+                    QtAndroidPrivate::PermissionResult requestResult = requestWatcher->result();
+                    if (requestResult == QtAndroidPrivate::PermissionResult::Authorized) {
+                        qDebug() << "Microphone permission granted";
+                        initializeAi();
+                    } else {
+                        qDebug() << "Microphone permission denied";
+                        // Handle the case where permission is denied
+                        QMetaObject::invokeMethod(this, "close", Qt::QueuedConnection);
+                    }
+                    requestWatcher->deleteLater();
+                });
+
+                requestWatcher->setFuture(requestFuture);
+            } else if (checkResult == QtAndroidPrivate::PermissionResult::Authorized) {
+                qDebug() << "Microphone permission already granted";
+                initializeAi();
+            }
+            checkWatcher->deleteLater();
+        });
+
+        checkWatcher->setFuture(checkFuture);
+    } else {
+        // For Android versions below 6.0, permission is granted at install time
+        initializeAi();
+    }
+}
 
 void Ai::handleAudioStateChanged(QAudio::State newState)
 {
@@ -299,8 +355,8 @@ void Ai::httpSpeechReadyRead()
         auto command = data["results"][0]["alternatives"][0]["transcript"].toString();
         if (command.size() > 0){
 
-//           auto translatedText = translateClient->translateText(command, langpair);
-             translateText(command, langpair);
+            //           auto translatedText = translateClient->translateText(command, langpair);
+            translateText(command, langpair);
         }
         else
         {
